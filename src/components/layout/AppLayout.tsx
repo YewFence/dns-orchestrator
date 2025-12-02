@@ -10,7 +10,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background pb-6">
       <Sidebar />
-      {children ?? <MainContent />}
+      {children || <MainContent />}
     </div>
   );
 }
