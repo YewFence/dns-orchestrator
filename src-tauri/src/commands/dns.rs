@@ -4,13 +4,17 @@ use crate::error::DnsError;
 use crate::types::*;
 use crate::AppState;
 
-/// 列出域名下的所有 DNS 记录
+/// 列出域名下的所有 DNS 记录（分页 + 搜索）
 #[tauri::command]
 pub async fn list_dns_records(
     state: State<'_, AppState>,
     account_id: String,
     domain_id: String,
-) -> Result<ApiResponse<Vec<DnsRecord>>, String> {
+    page: Option<u32>,
+    page_size: Option<u32>,
+    keyword: Option<String>,
+    record_type: Option<String>,
+) -> Result<ApiResponse<PaginatedResponse<DnsRecord>>, String> {
     // 获取 provider
     let provider = state
         .registry
@@ -18,13 +22,21 @@ pub async fn list_dns_records(
         .await
         .ok_or_else(|| DnsError::AccountNotFound(account_id.clone()).to_string())?;
 
+    // 构造查询参数
+    let params = RecordQueryParams {
+        page: page.unwrap_or(1),
+        page_size: page_size.unwrap_or(20),
+        keyword,
+        record_type,
+    };
+
     // 调用 provider 获取 DNS 记录列表
-    let records = provider
-        .list_records(&domain_id)
+    let response = provider
+        .list_records(&domain_id, &params)
         .await
         .map_err(|e| e.to_string())?;
 
-    Ok(ApiResponse::success(records))
+    Ok(ApiResponse::success(response))
 }
 
 /// 创建 DNS 记录

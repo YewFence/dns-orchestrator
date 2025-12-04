@@ -9,7 +9,8 @@ use std::collections::HashMap;
 use super::DnsProvider;
 use crate::error::{DnsError, Result};
 use crate::types::{
-    CreateDnsRecordRequest, DnsRecord, DnsRecordType, Domain, DomainStatus, UpdateDnsRecordRequest,
+    CreateDnsRecordRequest, DnsRecord, DnsRecordType, Domain, DomainStatus, PaginatedResponse,
+    PaginationParams, RecordQueryParams, UpdateDnsRecordRequest,
 };
 
 const DNSPOD_API_HOST: &str = "dnspod.tencentcloudapi.com";
@@ -52,14 +53,12 @@ struct DomainListResponse {
     #[serde(rename = "DomainList")]
     domain_list: Option<Vec<DnspodDomain>>,
     #[serde(rename = "DomainCountInfo")]
-    #[allow(dead_code)]
     domain_count_info: Option<DomainCountInfo>,
 }
 
 #[derive(Debug, Deserialize)]
 struct DomainCountInfo {
     #[serde(rename = "AllTotal")]
-    #[allow(dead_code)]
     all_total: Option<u32>,
 }
 
@@ -81,6 +80,14 @@ struct DnspodDomain {
 struct RecordListResponse {
     #[serde(rename = "RecordList")]
     record_list: Option<Vec<DnspodRecord>>,
+    #[serde(rename = "RecordCountInfo")]
+    record_count_info: Option<RecordCountInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RecordCountInfo {
+    #[serde(rename = "TotalCount")]
+    total_count: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -343,7 +350,7 @@ impl DnsProvider for DnspodProvider {
         }
     }
 
-    async fn list_domains(&self) -> Result<Vec<Domain>> {
+    async fn list_domains(&self, params: &PaginationParams) -> Result<PaginatedResponse<Domain>> {
         #[derive(Serialize)]
         struct DescribeDomainListRequest {
             #[serde(rename = "Offset")]
@@ -352,12 +359,19 @@ impl DnsProvider for DnspodProvider {
             limit: u32,
         }
 
+        // 将 page/page_size 转换为 offset/limit
+        let offset = (params.page - 1) * params.page_size;
         let req = DescribeDomainListRequest {
-            offset: 0,
-            limit: 3000, // 获取所有域名
+            offset,
+            limit: params.page_size.min(100),
         };
 
         let response: DomainListResponse = self.request("DescribeDomainList", &req).await?;
+
+        let total_count = response
+            .domain_count_info
+            .and_then(|c| c.all_total)
+            .unwrap_or(0);
 
         let domains = response
             .domain_list
@@ -373,20 +387,26 @@ impl DnsProvider for DnspodProvider {
             })
             .collect();
 
-        Ok(domains)
+        Ok(PaginatedResponse::new(domains, params.page, params.page_size, total_count))
     }
 
     async fn get_domain(&self, domain_id: &str) -> Result<Domain> {
         // DNSPod API 需要域名字符串，先从域名列表中查找
-        let domains = self.list_domains().await?;
+        let params = PaginationParams { page: 1, page_size: 100 };
+        let response = self.list_domains(&params).await?;
 
-        domains
+        response
+            .items
             .into_iter()
             .find(|d| d.id == domain_id)
             .ok_or_else(|| DnsError::DomainNotFound(domain_id.to_string()))
     }
 
-    async fn list_records(&self, domain_id: &str) -> Result<Vec<DnsRecord>> {
+    async fn list_records(
+        &self,
+        domain_id: &str,
+        params: &RecordQueryParams,
+    ) -> Result<PaginatedResponse<DnsRecord>> {
         #[derive(Serialize)]
         struct DescribeRecordListRequest {
             #[serde(rename = "Domain")]
@@ -395,41 +415,66 @@ impl DnsProvider for DnspodProvider {
             offset: u32,
             #[serde(rename = "Limit")]
             limit: u32,
+            /// 主机头关键字（模糊搜索）
+            #[serde(rename = "Keyword", skip_serializing_if = "Option::is_none")]
+            keyword: Option<String>,
+            /// 记录类型过滤
+            #[serde(rename = "RecordType", skip_serializing_if = "Option::is_none")]
+            record_type: Option<String>,
         }
 
         // 先获取域名信息以获取域名名称
         let domain_info = self.get_domain(domain_id).await?;
 
+        // 将 page/page_size 转换为 offset/limit
+        let offset = (params.page - 1) * params.page_size;
         let req = DescribeRecordListRequest {
             domain: domain_info.name,
-            offset: 0,
-            limit: 3000,
+            offset,
+            limit: params.page_size.min(100),
+            keyword: params.keyword.clone().filter(|k| !k.is_empty()),
+            record_type: params.record_type.clone().filter(|t| !t.is_empty()),
         };
 
-        let response: RecordListResponse = self.request("DescribeRecordList", &req).await?;
+        // DNSPod API 在记录为空时返回错误而不是空列表，需要特殊处理
+        let response: Result<RecordListResponse> = self.request("DescribeRecordList", &req).await;
 
-        let records = response
-            .record_list
-            .unwrap_or_default()
-            .into_iter()
-            .filter_map(|r| {
-                let record_type = Self::convert_record_type(&r.record_type).ok()?;
-                Some(DnsRecord {
-                    id: r.record_id.to_string(),
-                    domain_id: domain_id.to_string(),
-                    record_type,
-                    name: r.name,
-                    value: r.value,
-                    ttl: r.ttl,
-                    priority: r.mx,
-                    proxied: None,
-                    created_at: None,
-                    updated_at: r.updated_on,
-                })
-            })
-            .collect();
+        match response {
+            Ok(data) => {
+                let total_count = data
+                    .record_count_info
+                    .and_then(|c| c.total_count)
+                    .unwrap_or(0);
 
-        Ok(records)
+                let records = data
+                    .record_list
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter_map(|r| {
+                        let record_type = Self::convert_record_type(&r.record_type).ok()?;
+                        Some(DnsRecord {
+                            id: r.record_id.to_string(),
+                            domain_id: domain_id.to_string(),
+                            record_type,
+                            name: r.name,
+                            value: r.value,
+                            ttl: r.ttl,
+                            priority: r.mx,
+                            proxied: None,
+                            created_at: None,
+                            updated_at: r.updated_on,
+                        })
+                    })
+                    .collect();
+
+                Ok(PaginatedResponse::new(records, params.page, params.page_size, total_count))
+            }
+            // "NoDataOfRecord" 表示记录列表为空，返回空结果而不是错误
+            Err(DnsError::ApiError(msg)) if msg.contains("NoDataOfRecord") => {
+                Ok(PaginatedResponse::new(vec![], params.page, params.page_size, 0))
+            }
+            Err(e) => Err(e),
+        }
     }
 
     async fn create_record(&self, req: &CreateDnsRecordRequest) -> Result<DnsRecord> {

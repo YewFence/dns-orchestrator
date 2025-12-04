@@ -38,7 +38,10 @@ export function Sidebar({ onOpenToolbox, onNavigateToMain }: SidebarProps) {
     domains,
     selectedDomainId,
     isLoading: isDomainLoading,
+    isLoadingMore: isDomainLoadingMore,
+    hasMore: hasDomainMore,
     fetchDomains,
+    fetchMoreDomains,
     selectDomain,
     clearDomains,
   } = useDomainStore();
@@ -154,6 +157,9 @@ export function Sidebar({ onOpenToolbox, onNavigateToMain }: SidebarProps) {
                     selectDomain(id);
                     onNavigateToMain?.();
                   }}
+                  hasMore={hasDomainMore}
+                  isLoadingMore={isDomainLoadingMore}
+                  onLoadMore={() => selectedAccountId && fetchMoreDomains(selectedAccountId)}
                 />
               )}
             </div>

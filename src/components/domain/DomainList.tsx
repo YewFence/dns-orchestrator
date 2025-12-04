@@ -1,21 +1,52 @@
+import { useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { Domain, DomainStatus } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Globe } from "lucide-react";
+import { Globe, Loader2 } from "lucide-react";
 
 interface DomainListProps {
   domains: Domain[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 export function DomainList({
   domains,
   selectedId,
   onSelect,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
 }: DomainListProps) {
   const { t } = useTranslation();
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // 设置 IntersectionObserver 用于无限滚动
+  const handleObserver = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      const [entry] = entries;
+      if (entry.isIntersecting && hasMore && !isLoadingMore && onLoadMore) {
+        onLoadMore();
+      }
+    },
+    [hasMore, isLoadingMore, onLoadMore]
+  );
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !onLoadMore) return;
+
+    const observer = new IntersectionObserver(handleObserver, {
+      rootMargin: "100px",
+    });
+    observer.observe(sentinel);
+
+    return () => observer.disconnect();
+  }, [handleObserver, onLoadMore]);
 
   const statusConfig: Record<DomainStatus, { labelKey: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
     active: { labelKey: "domain.status.active", variant: "default" },
@@ -60,6 +91,13 @@ export function DomainList({
           </Badge>
         </button>
       ))}
+      {/* 无限滚动触发点 */}
+      <div ref={sentinelRef} className="h-1" />
+      {isLoadingMore && (
+        <div className="flex justify-center py-2">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        </div>
+      )}
     </div>
   );
 }

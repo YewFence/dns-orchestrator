@@ -16,3 +16,18 @@ export interface ApiError {
   code: string;
   message: string;
 }
+
+/** 分页参数 */
+export interface PaginationParams {
+  page: number;
+  pageSize: number;
+}
+
+/** 分页响应 */
+export interface PaginatedResponse<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  hasMore: boolean;
+}

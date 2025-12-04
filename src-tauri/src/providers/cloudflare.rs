@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use super::DnsProvider;
 use crate::error::{DnsError, Result};
 use crate::types::{
-    CreateDnsRecordRequest, DnsRecord, DnsRecordType, Domain, DomainStatus, UpdateDnsRecordRequest,
+    CreateDnsRecordRequest, DnsRecord, DnsRecordType, Domain, DomainStatus, PaginatedResponse,
+    PaginationParams, RecordQueryParams, UpdateDnsRecordRequest,
 };
 
 const CF_API_BASE: &str = "https://api.cloudflare.com/client/v4";
@@ -17,12 +18,23 @@ struct CloudflareResponse<T> {
     success: bool,
     result: Option<T>,
     errors: Option<Vec<CloudflareError>>,
+    result_info: Option<CloudflareResultInfo>,
 }
 
 #[derive(Debug, Deserialize)]
 struct CloudflareError {
+    #[allow(dead_code)]
     code: i32,
     message: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CloudflareResultInfo {
+    #[allow(dead_code)]
+    page: u32,
+    #[allow(dead_code)]
+    per_page: u32,
+    total_count: u32,
 }
 
 /// Cloudflare Zone 结构
@@ -130,6 +142,59 @@ impl CloudflareProvider {
         cf_response
             .result
             .ok_or_else(|| DnsError::ApiError("响应中缺少 result 字段".to_string()))
+    }
+
+    /// 执行 GET 请求 (带分页)
+    async fn get_paginated<T: for<'de> Deserialize<'de>>(
+        &self,
+        path: &str,
+        params: &PaginationParams,
+    ) -> Result<(Vec<T>, u32)> {
+        // Cloudflare zones API 最大 per_page 是 50
+        let url = format!(
+            "{}{}?page={}&per_page={}",
+            CF_API_BASE, path, params.page, params.page_size.min(50)
+        );
+        log::debug!("GET {}", url);
+
+        let response = self
+            .client
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", self.api_token))
+            .send()
+            .await
+            .map_err(|e| DnsError::ApiError(format!("请求失败: {}", e)))?;
+
+        let status = response.status();
+        log::debug!("Response Status: {}", status);
+
+        let response_text = response
+            .text()
+            .await
+            .map_err(|e| DnsError::ApiError(format!("读取响应失败: {}", e)))?;
+
+        log::debug!("Response Body: {}", response_text);
+
+        let cf_response: CloudflareResponse<Vec<T>> = serde_json::from_str(&response_text)
+            .map_err(|e| {
+                log::error!("JSON 解析失败: {}", e);
+                log::error!("原始响应: {}", response_text);
+                DnsError::ApiError(format!("解析响应失败: {}", e))
+            })?;
+
+        if !cf_response.success {
+            let error_msg = cf_response
+                .errors
+                .and_then(|errors| errors.first().map(|e| e.message.clone()))
+                .unwrap_or_else(|| "未知错误".to_string());
+            log::error!("API 错误: {}", error_msg);
+            return Err(DnsError::ApiError(error_msg));
+        }
+
+        let total_count = cf_response.result_info.map(|i| i.total_count).unwrap_or(0);
+        let items = cf_response.result.unwrap_or_default();
+
+        Ok((items, total_count))
     }
 
     /// 执行 POST 请求
@@ -367,9 +432,11 @@ impl DnsProvider for CloudflareProvider {
         }
     }
 
-    async fn list_domains(&self) -> Result<Vec<Domain>> {
-        let zones: Vec<CloudflareZone> = self.get("/zones").await?;
-        Ok(zones.into_iter().map(|z| self.zone_to_domain(z)).collect())
+    async fn list_domains(&self, params: &PaginationParams) -> Result<PaginatedResponse<Domain>> {
+        let (zones, total_count): (Vec<CloudflareZone>, u32) =
+            self.get_paginated("/zones", params).await?;
+        let domains = zones.into_iter().map(|z| self.zone_to_domain(z)).collect();
+        Ok(PaginatedResponse::new(domains, params.page, params.page_size, total_count))
     }
 
     async fn get_domain(&self, domain_id: &str) -> Result<Domain> {
@@ -377,18 +444,72 @@ impl DnsProvider for CloudflareProvider {
         Ok(self.zone_to_domain(zone))
     }
 
-    async fn list_records(&self, domain_id: &str) -> Result<Vec<DnsRecord>> {
+    async fn list_records(
+        &self,
+        domain_id: &str,
+        params: &RecordQueryParams,
+    ) -> Result<PaginatedResponse<DnsRecord>> {
         // 先获取 zone 信息以获取域名
         let zone: CloudflareZone = self.get(&format!("/zones/{}", domain_id)).await?;
         let zone_name = zone.name;
 
-        let cf_records: Vec<CloudflareDnsRecord> =
-            self.get(&format!("/zones/{}/dns_records", domain_id)).await?;
+        // 构建查询 URL，包含搜索参数
+        let mut url = format!(
+            "/zones/{}/dns_records?page={}&per_page={}",
+            domain_id,
+            params.page,
+            params.page_size.min(100) // Cloudflare 最大 per_page 是 5000000, 但为了性能考虑这里限制为 100
+        );
 
-        cf_records
+        // 添加搜索关键词（只搜索记录名称）
+        if let Some(ref keyword) = params.keyword {
+            if !keyword.is_empty() {
+                url.push_str(&format!("&name.contains={}", urlencoding::encode(keyword)));
+            }
+        }
+
+        // 添加记录类型过滤
+        if let Some(ref record_type) = params.record_type {
+            if !record_type.is_empty() {
+                url.push_str(&format!("&type={}", urlencoding::encode(record_type)));
+            }
+        }
+
+        log::debug!("GET {}{}", CF_API_BASE, url);
+
+        let response = self
+            .client
+            .get(&format!("{}{}", CF_API_BASE, url))
+            .header("Authorization", format!("Bearer {}", self.api_token))
+            .send()
+            .await
+            .map_err(|e| DnsError::ApiError(format!("请求失败: {}", e)))?;
+
+        let response_text = response
+            .text()
+            .await
+            .map_err(|e| DnsError::ApiError(format!("读取响应失败: {}", e)))?;
+
+        let cf_response: CloudflareResponse<Vec<CloudflareDnsRecord>> = serde_json::from_str(&response_text)
+            .map_err(|e| DnsError::ApiError(format!("解析响应失败: {}", e)))?;
+
+        if !cf_response.success {
+            let error_msg = cf_response
+                .errors
+                .and_then(|errors| errors.first().map(|e| e.message.clone()))
+                .unwrap_or_else(|| "未知错误".to_string());
+            return Err(DnsError::ApiError(error_msg));
+        }
+
+        let total_count = cf_response.result_info.map(|i| i.total_count).unwrap_or(0);
+        let cf_records = cf_response.result.unwrap_or_default();
+
+        let records: Result<Vec<DnsRecord>> = cf_records
             .into_iter()
             .map(|r| self.cf_record_to_dns_record(r, domain_id, &zone_name))
-            .collect()
+            .collect();
+
+        Ok(PaginatedResponse::new(records?, params.page, params.page_size, total_count))
     }
 
     async fn create_record(&self, req: &CreateDnsRecordRequest) -> Result<DnsRecord> {

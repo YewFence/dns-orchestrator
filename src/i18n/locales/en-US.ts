@@ -94,7 +94,7 @@ export default {
     deleteConfirm: "Confirm Delete",
     deleteConfirmDesc: "Are you sure you want to delete record {{name}}? This action cannot be undone.",
     noRecords: "No DNS records",
-    searchPlaceholder: "Search name or value...",
+    searchPlaceholder: "Search name...",
     // Fields
     name: "Name",
     namePlaceholder: "@ or subdomain, e.g., www",

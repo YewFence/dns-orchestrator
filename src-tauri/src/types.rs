@@ -1,6 +1,83 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// ============ 分页相关类型 ============
+
+/// 分页参数
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaginationParams {
+    pub page: u32,
+    pub page_size: u32,
+}
+
+impl Default for PaginationParams {
+    fn default() -> Self {
+        Self { page: 1, page_size: 20 }
+    }
+}
+
+/// DNS 记录查询参数（包含搜索和过滤）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordQueryParams {
+    pub page: u32,
+    pub page_size: u32,
+    /// 搜索关键词（匹配记录名称或值）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keyword: Option<String>,
+    /// 记录类型过滤
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub record_type: Option<String>,
+}
+
+impl Default for RecordQueryParams {
+    fn default() -> Self {
+        Self {
+            page: 1,
+            page_size: 20,
+            keyword: None,
+            record_type: None,
+        }
+    }
+}
+
+impl RecordQueryParams {
+    /// 转换为基础分页参数
+    pub fn to_pagination(&self) -> PaginationParams {
+        PaginationParams {
+            page: self.page,
+            page_size: self.page_size,
+        }
+    }
+}
+
+/// 分页响应
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaginatedResponse<T> {
+    pub items: Vec<T>,
+    pub page: u32,
+    pub page_size: u32,
+    pub total_count: u32,
+    pub has_more: bool,
+}
+
+impl<T> PaginatedResponse<T> {
+    pub fn new(items: Vec<T>, page: u32, page_size: u32, total_count: u32) -> Self {
+        let has_more = (page * page_size) < total_count;
+        Self {
+            items,
+            page,
+            page_size,
+            total_count,
+            has_more,
+        }
+    }
+}
+
+// ============ Provider 相关类型 ============
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DnsProvider {
@@ -56,7 +133,7 @@ pub struct Domain {
     pub account_id: String,
     pub provider: DnsProvider,
     pub status: DomainStatus,
-    #[serde(rename = "recordCount")]
+    #[serde(rename = "recordCount", skip_serializing_if = "Option::is_none")]
     pub record_count: Option<u32>,
 }
 

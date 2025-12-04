@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useDnsStore } from "@/stores";
+import { useDebouncedCallback } from "use-debounce";
 import {
   Table,
   TableBody,
@@ -43,21 +44,93 @@ interface DnsRecordTableProps {
   supportsProxy: boolean;
 }
 
+// 可用的记录类型列表
+const RECORD_TYPES = ["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA"];
+
 export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecordTableProps) {
   const { t } = useTranslation();
-  const { records, isLoading, isDeleting, fetchRecords, deleteRecord } =
-    useDnsStore();
+  const {
+    records,
+    isLoading,
+    isLoadingMore,
+    isDeleting,
+    hasMore,
+    totalCount,
+    currentDomainId,
+    keyword: storeKeyword,
+    recordType: storeRecordType,
+    fetchRecords,
+    fetchMoreRecords,
+    deleteRecord,
+  } = useDnsStore();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState<DnsRecord | null>(null);
   const [deletingRecord, setDeletingRecord] = useState<DnsRecord | null>(null);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  // 本地搜索输入状态（用于即时显示）
+  const [searchInput, setSearchInput] = useState("");
+  // 选中的类型（本地状态）
+  const [selectedType, setSelectedType] = useState("");
+  const sentinelRef = useRef<HTMLTableRowElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // 防抖搜索
+  const debouncedSearch = useDebouncedCallback((keyword: string) => {
+    fetchRecords(accountId, domainId, keyword, selectedType);
+  }, 300);
+
+  // 处理搜索输入变化
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
+    debouncedSearch(value);
+  };
+
+  // 处理类型选择变化
+  const handleTypeChange = (type: string) => {
+    const newType = selectedType === type ? "" : type;
+    setSelectedType(newType);
+    fetchRecords(accountId, domainId, searchInput, newType);
+  };
+
+  // 清除所有筛选
+  const clearFilters = () => {
+    setSearchInput("");
+    setSelectedType("");
+    fetchRecords(accountId, domainId, "", "");
+  };
 
   useEffect(() => {
+    // 初始加载时重置本地状态
+    setSearchInput(storeKeyword);
+    setSelectedType(storeRecordType);
     fetchRecords(accountId, domainId);
-  }, [accountId, domainId, fetchRecords]);
+  }, [accountId, domainId]); // 只在账户/域名变化时重新加载
+
+  // 无限滚动 IntersectionObserver
+  const handleObserver = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      const [entry] = entries;
+      if (entry.isIntersecting && hasMore && !isLoadingMore) {
+        fetchMoreRecords(accountId, domainId);
+      }
+    },
+    [hasMore, isLoadingMore, fetchMoreRecords, accountId, domainId]
+  );
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const scrollContainer = scrollContainerRef.current;
+    if (!sentinel || !scrollContainer) return;
+
+    const observer = new IntersectionObserver(handleObserver, {
+      root: scrollContainer,
+      rootMargin: "100px",
+    });
+    observer.observe(sentinel);
+
+    return () => observer.disconnect();
+  }, [handleObserver]);
 
   // 处理排序点击
   const handleSort = (field: SortField) => {
@@ -78,49 +151,13 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
     }
   };
 
-  // 获取可用的记录类型
-  const availableTypes = useMemo(() => {
-    return [...new Set(records.map((r) => r.type))].sort();
-  }, [records]);
+  const hasActiveFilters = searchInput || selectedType;
 
-  // 切换类型筛选
-  const toggleType = (type: string) => {
-    setSelectedTypes((prev) =>
-      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
-    );
-  };
+  // 排序后的记录（搜索过滤已由后端完成）
+  const sortedRecords = useMemo(() => {
+    if (!sortField || !sortDirection) return records;
 
-  // 清除所有筛选
-  const clearFilters = () => {
-    setSearchQuery("");
-    setSelectedTypes([]);
-  };
-
-  const hasActiveFilters = searchQuery || selectedTypes.length > 0;
-
-  // 过滤和排序后的记录
-  const filteredAndSortedRecords = useMemo(() => {
-    let result = records;
-
-    // 搜索过滤
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (r) =>
-          r.name.toLowerCase().includes(query) ||
-          r.value.toLowerCase().includes(query)
-      );
-    }
-
-    // 类型过滤
-    if (selectedTypes.length > 0) {
-      result = result.filter((r) => selectedTypes.includes(r.type));
-    }
-
-    // 排序
-    if (!sortField || !sortDirection) return result;
-
-    return [...result].sort((a, b) => {
+    return [...records].sort((a, b) => {
       let aVal: string | number;
       let bVal: string | number;
 
@@ -152,7 +189,7 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
       const comparison = String(aVal).localeCompare(String(bVal));
       return sortDirection === "asc" ? comparison : -comparison;
     });
-  }, [records, searchQuery, selectedTypes, sortField, sortDirection]);
+  }, [records, sortField, sortDirection]);
 
   // 排序图标组件
   const SortIcon = ({ field }: { field: SortField }) => {
@@ -185,7 +222,11 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
     setEditingRecord(null);
   };
 
-  if (isLoading && records.length === 0) {
+  // 只有初次加载（domain 切换）才显示全屏 loading
+  // 搜索时即使结果为空也不显示全屏 loading
+  const isInitialLoading = isLoading && records.length === 0 && currentDomainId !== domainId;
+
+  if (isInitialLoading) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -203,7 +244,7 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              onClick={() => fetchRecords(accountId, domainId)}
+              onClick={() => fetchRecords(accountId, domainId, searchInput, selectedType)}
               disabled={isLoading}
             >
               <RefreshCw
@@ -211,15 +252,8 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
               />
             </Button>
             <span className="text-sm text-muted-foreground">{t("common.total")}</span>
-            <Badge variant="secondary">{records.length}</Badge>
+            <Badge variant="secondary">{totalCount}</Badge>
             <span className="text-sm text-muted-foreground">{t("common.records")}</span>
-            {hasActiveFilters && (
-              <>
-                <span className="text-sm text-muted-foreground">，{t("common.showing")}</span>
-                <Badge variant="outline">{filteredAndSortedRecords.length}</Badge>
-                <span className="text-sm text-muted-foreground">{t("common.records")}</span>
-              </>
-            )}
           </div>
           <Button size="sm" onClick={() => setShowAddForm(true)}>
             <Plus className="h-4 w-4 mr-2" />
@@ -233,16 +267,16 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder={t("dns.searchPlaceholder")}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={searchInput}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="h-8 pl-8 pr-8"
             />
-            {searchQuery && (
+            {searchInput && (
               <Button
                 variant="ghost"
                 size="icon"
                 className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
-                onClick={() => setSearchQuery("")}
+                onClick={() => handleSearchChange("")}
               >
                 <X className="h-3 w-3" />
               </Button>
@@ -253,20 +287,15 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="h-8">
                 <Filter className="h-4 w-4 mr-2" />
-                {t("common.type")}
-                {selectedTypes.length > 0 && (
-                  <Badge variant="secondary" className="ml-2 h-5 px-1.5">
-                    {selectedTypes.length}
-                  </Badge>
-                )}
+                {selectedType || t("common.type")}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              {availableTypes.map((type) => (
+              {RECORD_TYPES.map((type) => (
                 <DropdownMenuCheckboxItem
                   key={type}
-                  checked={selectedTypes.includes(type)}
-                  onCheckedChange={() => toggleType(type)}
+                  checked={selectedType === type}
+                  onCheckedChange={() => handleTypeChange(type)}
                 >
                   {type}
                 </DropdownMenuCheckboxItem>
@@ -289,7 +318,7 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
       </div>
 
       {/* Table */}
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto">
         <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
@@ -334,7 +363,7 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredAndSortedRecords.length === 0 ? (
+              {sortedRecords.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={supportsProxy ? 6 : 5}
@@ -344,16 +373,32 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredAndSortedRecords.map((record) => (
-                  <DnsRecordRow
-                    key={record.id}
-                    record={record}
-                    onEdit={() => handleEdit(record)}
-                    onDelete={() => handleDelete(record)}
-                    disabled={isDeleting}
-                    showProxy={supportsProxy}
-                  />
-                ))
+                <>
+                  {sortedRecords.map((record) => (
+                    <DnsRecordRow
+                      key={record.id}
+                      record={record}
+                      onEdit={() => handleEdit(record)}
+                      onDelete={() => handleDelete(record)}
+                      disabled={isDeleting}
+                      showProxy={supportsProxy}
+                    />
+                  ))}
+                  {/* 无限滚动触发行 */}
+                  <TableRow ref={sentinelRef} className="h-1 border-0">
+                    <TableCell colSpan={supportsProxy ? 6 : 5} className="p-0" />
+                  </TableRow>
+                  {isLoadingMore && (
+                    <TableRow className="border-0">
+                      <TableCell
+                        colSpan={supportsProxy ? 6 : 5}
+                        className="text-center py-4"
+                      >
+                        <Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
               )}
             </TableBody>
           </Table>

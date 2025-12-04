@@ -14,7 +14,10 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::error::{DnsError, Result};
-use crate::types::{CreateDnsRecordRequest, DnsRecord, Domain, UpdateDnsRecordRequest};
+use crate::types::{
+    CreateDnsRecordRequest, DnsRecord, Domain, PaginatedResponse, PaginationParams,
+    RecordQueryParams, UpdateDnsRecordRequest,
+};
 
 /// DNS 提供商 Trait
 #[async_trait]
@@ -25,14 +28,18 @@ pub trait DnsProvider: Send + Sync {
     /// 验证凭证是否有效
     async fn validate_credentials(&self) -> Result<bool>;
 
-    /// 获取域名列表
-    async fn list_domains(&self) -> Result<Vec<Domain>>;
+    /// 获取域名列表 (分页)
+    async fn list_domains(&self, params: &PaginationParams) -> Result<PaginatedResponse<Domain>>;
 
     /// 获取域名详情
     async fn get_domain(&self, domain_id: &str) -> Result<Domain>;
 
-    /// 获取 DNS 记录列表
-    async fn list_records(&self, domain_id: &str) -> Result<Vec<DnsRecord>>;
+    /// 获取 DNS 记录列表 (分页 + 搜索)
+    async fn list_records(
+        &self,
+        domain_id: &str,
+        params: &RecordQueryParams,
+    ) -> Result<PaginatedResponse<DnsRecord>>;
 
     /// 创建 DNS 记录
     async fn create_record(&self, req: &CreateDnsRecordRequest) -> Result<DnsRecord>;

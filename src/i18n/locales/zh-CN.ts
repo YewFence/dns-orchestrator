@@ -94,7 +94,7 @@ export default {
     deleteConfirm: "确认删除",
     deleteConfirmDesc: "确定要删除记录 {{name}} 吗？此操作无法撤销。",
     noRecords: "暂无 DNS 记录",
-    searchPlaceholder: "搜索名称或值...",
+    searchPlaceholder: "搜索名称...",
     // Fields
     name: "名称",
     namePlaceholder: "@ 或子域名，如 www",

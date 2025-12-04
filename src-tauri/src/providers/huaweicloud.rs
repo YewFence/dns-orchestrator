@@ -9,7 +9,8 @@ use std::collections::HashMap;
 use super::DnsProvider;
 use crate::error::{DnsError, Result};
 use crate::types::{
-    CreateDnsRecordRequest, DnsRecord, DnsRecordType, Domain, DomainStatus, UpdateDnsRecordRequest,
+    CreateDnsRecordRequest, DnsRecord, DnsRecordType, Domain, DomainStatus, PaginatedResponse,
+    PaginationParams, RecordQueryParams, UpdateDnsRecordRequest,
 };
 
 const HUAWEICLOUD_DNS_HOST: &str = "dns.myhuaweicloud.com";
@@ -21,6 +22,13 @@ type HmacSha256 = Hmac<Sha256>;
 #[derive(Debug, Deserialize)]
 struct ListZonesResponse {
     zones: Option<Vec<HuaweicloudZone>>,
+    #[serde(rename = "metadata")]
+    metadata: Option<ListMetadata>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ListMetadata {
+    total_count: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -34,6 +42,8 @@ struct HuaweicloudZone {
 #[derive(Debug, Deserialize)]
 struct ListRecordSetsResponse {
     recordsets: Option<Vec<HuaweicloudRecordSet>>,
+    #[serde(rename = "metadata")]
+    metadata: Option<ListMetadata>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -479,10 +489,18 @@ impl DnsProvider for HuaweicloudProvider {
         }
     }
 
-    async fn list_domains(&self) -> Result<Vec<Domain>> {
-        let response: ListZonesResponse = self
-            .get("/v2/zones", "type=public&limit=500")
-            .await?;
+    async fn list_domains(&self, params: &PaginationParams) -> Result<PaginatedResponse<Domain>> {
+        // 华为云使用 offset/limit 分页
+        let offset = (params.page - 1) * params.page_size;
+        let limit = params.page_size.min(500); // 华为云最大支持 500
+        let query = format!("type=public&offset={}&limit={}", offset, limit);
+
+        let response: ListZonesResponse = self.get("/v2/zones", &query).await?;
+
+        let total_count = response
+            .metadata
+            .and_then(|m| m.total_count)
+            .unwrap_or(0);
 
         let domains = response
             .zones
@@ -498,24 +516,55 @@ impl DnsProvider for HuaweicloudProvider {
             })
             .collect();
 
-        Ok(domains)
+        Ok(PaginatedResponse::new(domains, params.page, params.page_size, total_count))
     }
 
     async fn get_domain(&self, domain_id: &str) -> Result<Domain> {
-        let domains = self.list_domains().await?;
+        // 使用大页面一次性获取用于查找
+        let params = PaginationParams { page: 1, page_size: 100 };
+        let response = self.list_domains(&params).await?;
 
-        domains
+        response
+            .items
             .into_iter()
             .find(|d| d.id == domain_id || d.name == domain_id)
             .ok_or_else(|| DnsError::DomainNotFound(domain_id.to_string()))
     }
 
-    async fn list_records(&self, domain_id: &str) -> Result<Vec<DnsRecord>> {
+    async fn list_records(
+        &self,
+        domain_id: &str,
+        params: &RecordQueryParams,
+    ) -> Result<PaginatedResponse<DnsRecord>> {
         // 获取域名信息以获取域名名称
         let domain_info = self.get_domain(domain_id).await?;
 
+        // 华为云使用 offset/limit 分页
+        let offset = (params.page - 1) * params.page_size;
+        let limit = params.page_size.min(500); // 华为云最大支持 500
+        let mut query = format!("offset={}&limit={}", offset, limit);
+
+        // 添加搜索关键词（华为云支持 name 参数模糊匹配）
+        if let Some(ref keyword) = params.keyword {
+            if !keyword.is_empty() {
+                query.push_str(&format!("&name={}", urlencoding::encode(keyword)));
+            }
+        }
+
+        // 添加记录类型过滤
+        if let Some(ref record_type) = params.record_type {
+            if !record_type.is_empty() {
+                query.push_str(&format!("&type={}", urlencoding::encode(record_type)));
+            }
+        }
+
         let path = format!("/v2/zones/{}/recordsets", domain_id);
-        let response: ListRecordSetsResponse = self.get(&path, "limit=500").await?;
+        let response: ListRecordSetsResponse = self.get(&path, &query).await?;
+
+        let total_count = response
+            .metadata
+            .and_then(|m| m.total_count)
+            .unwrap_or(0);
 
         let records = response
             .recordsets
@@ -557,7 +606,7 @@ impl DnsProvider for HuaweicloudProvider {
             })
             .collect();
 
-        Ok(records)
+        Ok(PaginatedResponse::new(records, params.page, params.page_size, total_count))
     }
 
     async fn create_record(&self, req: &CreateDnsRecordRequest) -> Result<DnsRecord> {

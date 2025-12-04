@@ -9,7 +9,8 @@ use std::collections::{BTreeMap, HashMap};
 use super::DnsProvider;
 use crate::error::{DnsError, Result};
 use crate::types::{
-    CreateDnsRecordRequest, DnsRecord, DnsRecordType, Domain, DomainStatus, UpdateDnsRecordRequest,
+    CreateDnsRecordRequest, DnsRecord, DnsRecordType, Domain, DomainStatus, PaginatedResponse,
+    PaginationParams, RecordQueryParams, UpdateDnsRecordRequest,
 };
 
 const ALIYUN_DNS_HOST: &str = "alidns.cn-hangzhou.aliyuncs.com";
@@ -105,7 +106,6 @@ struct DescribeDomainsResponse {
     #[serde(rename = "Domains")]
     domains: Option<DomainsWrapper>,
     #[serde(rename = "TotalCount")]
-    #[allow(dead_code)]
     total_count: Option<u32>,
 }
 
@@ -133,6 +133,8 @@ struct AliyunDomain {
 struct DescribeDomainRecordsResponse {
     #[serde(rename = "DomainRecords")]
     domain_records: Option<DomainRecordsWrapper>,
+    #[serde(rename = "TotalCount")]
+    total_count: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -427,7 +429,7 @@ impl DnsProvider for AliyunProvider {
         }
     }
 
-    async fn list_domains(&self) -> Result<Vec<Domain>> {
+    async fn list_domains(&self, params: &PaginationParams) -> Result<PaginatedResponse<Domain>> {
         #[derive(Serialize)]
         struct DescribeDomainsRequest {
             #[serde(rename = "PageNumber")]
@@ -437,13 +439,14 @@ impl DnsProvider for AliyunProvider {
         }
 
         let req = DescribeDomainsRequest {
-            page_number: 1,
-            page_size: 100, // 阿里云最大支持 100
+            page_number: params.page,
+            page_size: params.page_size.min(100), // 阿里云最大支持 100
         };
 
         let response: DescribeDomainsResponse =
             self.request("DescribeDomains", &req).await?;
 
+        let total_count = response.total_count.unwrap_or(0);
         let domains = response
             .domains
             .and_then(|d| d.domain)
@@ -459,20 +462,27 @@ impl DnsProvider for AliyunProvider {
             })
             .collect();
 
-        Ok(domains)
+        Ok(PaginatedResponse::new(domains, params.page, params.page_size, total_count))
     }
 
     async fn get_domain(&self, domain_id: &str) -> Result<Domain> {
         // 阿里云 API 需要域名名称，先从域名列表中查找
-        let domains = self.list_domains().await?;
+        // 使用大页面一次性获取用于查找
+        let params = PaginationParams { page: 1, page_size: 100 };
+        let response = self.list_domains(&params).await?;
 
-        domains
+        response
+            .items
             .into_iter()
             .find(|d| d.id == domain_id || d.name == domain_id)
             .ok_or_else(|| DnsError::DomainNotFound(domain_id.to_string()))
     }
 
-    async fn list_records(&self, domain_id: &str) -> Result<Vec<DnsRecord>> {
+    async fn list_records(
+        &self,
+        domain_id: &str,
+        params: &RecordQueryParams,
+    ) -> Result<PaginatedResponse<DnsRecord>> {
         #[derive(Serialize)]
         struct DescribeDomainRecordsRequest {
             #[serde(rename = "DomainName")]
@@ -481,6 +491,12 @@ impl DnsProvider for AliyunProvider {
             page_number: u32,
             #[serde(rename = "PageSize")]
             page_size: u32,
+            /// 主机记录关键字（模糊搜索）
+            #[serde(rename = "RRKeyWord", skip_serializing_if = "Option::is_none")]
+            rr_keyword: Option<String>,
+            /// 记录类型过滤
+            #[serde(rename = "Type", skip_serializing_if = "Option::is_none")]
+            record_type: Option<String>,
         }
 
         // 获取域名信息 (因为 API 需要域名名称而不是 ID)
@@ -488,13 +504,16 @@ impl DnsProvider for AliyunProvider {
 
         let req = DescribeDomainRecordsRequest {
             domain_name: domain_info.name,
-            page_number: 1,
-            page_size: 100,
+            page_number: params.page,
+            page_size: params.page_size.min(100), // 阿里云最大支持 100
+            rr_keyword: params.keyword.clone().filter(|k| !k.is_empty()),
+            record_type: params.record_type.clone().filter(|t| !t.is_empty()),
         };
 
         let response: DescribeDomainRecordsResponse =
             self.request("DescribeDomainRecords", &req).await?;
 
+        let total_count = response.total_count.unwrap_or(0);
         let records = response
             .domain_records
             .and_then(|r| r.record)
@@ -517,7 +536,7 @@ impl DnsProvider for AliyunProvider {
             })
             .collect();
 
-        Ok(records)
+        Ok(PaginatedResponse::new(records, params.page, params.page_size, total_count))
     }
 
     async fn create_record(&self, req: &CreateDnsRecordRequest) -> Result<DnsRecord> {
