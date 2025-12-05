@@ -23,7 +23,13 @@ interface SidebarProps {
   isMobile?: boolean
 }
 
-export function Sidebar({ onOpenToolbox, onNavigateToMain, onOpenSettings, onClose, isMobile = false }: SidebarProps) {
+export function Sidebar({
+  onOpenToolbox,
+  onNavigateToMain,
+  onOpenSettings,
+  onClose,
+  isMobile = false,
+}: SidebarProps) {
   const { t } = useTranslation()
   const {
     accounts,
@@ -93,7 +99,9 @@ export function Sidebar({ onOpenToolbox, onNavigateToMain, onOpenSettings, onClo
         {/* 账号列表 */}
         <div className={cn("p-4", isMobile && "p-3")}>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-medium text-muted-foreground text-sm">{t("account.title")}</h2>
+            <h2 className="font-medium text-muted-foreground text-s px-3 py-2 sm:p-0">
+              {t("account.title")}
+            </h2>
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"

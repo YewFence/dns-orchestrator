@@ -44,6 +44,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+tauri-plugin-os = "2"
 tauri-plugin-store = "2"
 tauri-plugin-log = "2"
 tauri-plugin-process = "2"
@@ -104,7 +105,9 @@ aes-gcm = "0.10"
 base64 = "0.22"
 rand = "0.8"
 pbkdf2 = { version = "0.12", features = ["simple"] }
-# 注意：hickory-resolver 和 whois-rust 暂不包含，需测试 Android 兼容性
+# DNS 和 WHOIS 查询
+hickory-resolver = "0.25"
+whois-rust = { version = "1.6", features = ["tokio"] }
 
 # Clippy 配置
 [lints.rust]

@@ -8,14 +8,14 @@ mod types;
 
 use std::sync::Arc;
 
-use commands::{account, dns, domain};
-#[cfg(not(target_os = "android"))]
-use commands::toolbox;
+use commands::{account, dns, domain, toolbox};
+#[cfg(target_os = "android")]
+use commands::updater;
+#[cfg(target_os = "android")]
+use credentials::AndroidCredentialStore;
 use credentials::CredentialStore;
 #[cfg(not(target_os = "android"))]
 use credentials::KeychainStore;
-#[cfg(target_os = "android")]
-use credentials::AndroidCredentialStore;
 use providers::ProviderRegistry;
 use storage::AccountStore;
 use tauri::Manager;
@@ -49,7 +49,7 @@ impl AppState {
     pub fn new(app_handle: tauri::AppHandle) -> Self {
         Self {
             registry: ProviderRegistry::new(),
-            credential_store: Arc::new(AndroidCredentialStore::new()),
+            credential_store: Arc::new(AndroidCredentialStore::new(app_handle.clone())),
             accounts: RwLock::new(Vec::new()),
             app_handle,
         }
@@ -60,6 +60,7 @@ impl AppState {
 pub fn run() {
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -79,12 +80,15 @@ pub fn run() {
     // Android 启用 Stronghold
     #[cfg(target_os = "android")]
     {
-        builder = builder.plugin(tauri_plugin_stronghold::Builder::with_argon2(
-            &std::path::PathBuf::from("stronghold_salt.txt")
-        ).build());
+        builder = builder.plugin(
+            tauri_plugin_stronghold::Builder::with_argon2(&std::path::PathBuf::from(
+                "stronghold_salt.txt",
+            ))
+            .build(),
+        );
     }
 
-    builder
+    let builder = builder
         .setup(|app| {
             // 创建 AppState（需要 AppHandle）
             let state = AppState::new(app.handle().clone());
@@ -97,55 +101,59 @@ pub fn run() {
 
             app.manage(state);
             Ok(())
-        })
-        .invoke_handler({
-            #[cfg(not(target_os = "android"))]
-            {
-                tauri::generate_handler![
-                    // Account commands
-                    account::list_accounts,
-                    account::create_account,
-                    account::delete_account,
-                    account::list_providers,
-                    account::export_accounts,
-                    account::preview_import,
-                    account::import_accounts,
-                    // Domain commands
-                    domain::list_domains,
-                    domain::get_domain,
-                    // DNS commands
-                    dns::list_dns_records,
-                    dns::create_dns_record,
-                    dns::update_dns_record,
-                    dns::delete_dns_record,
-                    // Toolbox commands (桌面端)
-                    toolbox::whois_lookup,
-                    toolbox::dns_lookup,
-                ]
-            }
-            #[cfg(target_os = "android")]
-            {
-                tauri::generate_handler![
-                    // Account commands
-                    account::list_accounts,
-                    account::create_account,
-                    account::delete_account,
-                    account::list_providers,
-                    account::export_accounts,
-                    account::preview_import,
-                    account::import_accounts,
-                    // Domain commands
-                    domain::list_domains,
-                    domain::get_domain,
-                    // DNS commands
-                    dns::list_dns_records,
-                    dns::create_dns_record,
-                    dns::update_dns_record,
-                    dns::delete_dns_record,
-                    // Toolbox commands 在 Android 上不可用
-                ]
-            }
-        })
+        });
+
+    #[cfg(not(target_os = "android"))]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        // Account commands
+        account::list_accounts,
+        account::create_account,
+        account::delete_account,
+        account::list_providers,
+        account::export_accounts,
+        account::preview_import,
+        account::import_accounts,
+        // Domain commands
+        domain::list_domains,
+        domain::get_domain,
+        // DNS commands
+        dns::list_dns_records,
+        dns::create_dns_record,
+        dns::update_dns_record,
+        dns::delete_dns_record,
+        // Toolbox commands
+        toolbox::whois_lookup,
+        toolbox::dns_lookup,
+    ]);
+
+    #[cfg(target_os = "android")]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        // Account commands
+        account::list_accounts,
+        account::create_account,
+        account::delete_account,
+        account::list_providers,
+        account::export_accounts,
+        account::preview_import,
+        account::import_accounts,
+        // Domain commands
+        domain::list_domains,
+        domain::get_domain,
+        // DNS commands
+        dns::list_dns_records,
+        dns::create_dns_record,
+        dns::update_dns_record,
+        dns::delete_dns_record,
+        // Toolbox commands
+        toolbox::whois_lookup,
+        toolbox::dns_lookup,
+        // Android updater commands
+        updater::check_android_update,
+        updater::download_apk,
+        updater::install_apk,
+    ]);
+
+    builder
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

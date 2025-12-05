@@ -3,5 +3,5 @@
 
 fn main() {
     // 日志系统由 tauri-plugin-log 初始化
-    dns_orchestrator_lib::run()
+    dns_orchestrator_lib::run();
 }

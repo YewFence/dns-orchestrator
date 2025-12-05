@@ -15,7 +15,12 @@ interface AppLayoutProps {
   onOpenSettings?: () => void
 }
 
-export function AppLayout({ children, onOpenToolbox, onNavigateToMain, onOpenSettings }: AppLayoutProps) {
+export function AppLayout({
+  children,
+  onOpenToolbox,
+  onNavigateToMain,
+  onOpenSettings,
+}: AppLayoutProps) {
   const { t } = useTranslation()
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = useState(false)

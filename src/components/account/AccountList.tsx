@@ -48,7 +48,7 @@ export function AccountList({
   }
 
   if (accounts.length === 0) {
-    return <div className="py-2 text-muted-foreground text-sm">{t("account.noAccounts")}</div>
+    return <div className="px-4 py-2 text-muted-foreground text-sm">{t("account.noAccounts")}</div>
   }
 
   return (

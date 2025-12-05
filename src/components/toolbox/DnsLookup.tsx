@@ -82,23 +82,23 @@ export function DnsLookup() {
         <CardTitle className="text-lg">{t("toolbox.dnsLookup")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* 查询输入 - 移动端两行 */}
-        <div className="flex flex-col gap-2 sm:hidden">
-          <div className="flex gap-2">
+        {/* 查询输入 */}
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-1 items-center rounded-md border bg-background">
             <Input
               placeholder={t("toolbox.domainPlaceholder")}
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={isLoading}
-              className="flex-1"
+              className="flex-1 border-0 shadow-none"
             />
             <Select
               value={recordType}
               onValueChange={(v) => setRecordType(v as DnsLookupType)}
               disabled={isLoading}
             >
-              <SelectTrigger className="w-24">
+              <SelectTrigger className="w-auto gap-1 border-0 border-l bg-transparent pl-3 pr-3 shadow-none rounded-l-none">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="max-h-60">
@@ -110,43 +110,7 @@ export function DnsLookup() {
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={handleLookup} disabled={isLoading} className="w-full">
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Search className="h-4 w-4" />
-            )}
-            <span className="ml-2">{t("toolbox.query")}</span>
-          </Button>
-        </div>
-
-        {/* 查询输入 - 桌面端一行 */}
-        <div className="hidden gap-2 sm:flex">
-          <Input
-            placeholder={t("toolbox.domainPlaceholder")}
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isLoading}
-            className="flex-1"
-          />
-          <Select
-            value={recordType}
-            onValueChange={(v) => setRecordType(v as DnsLookupType)}
-            disabled={isLoading}
-          >
-            <SelectTrigger className="w-28">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="max-h-60">
-              {DNS_RECORD_TYPES.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {type}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button onClick={handleLookup} disabled={isLoading}>
+          <Button onClick={handleLookup} disabled={isLoading} className="w-full sm:w-auto">
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (

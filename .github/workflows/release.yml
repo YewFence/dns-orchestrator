@@ -163,13 +163,78 @@ jobs:
           NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
-          cargo tauri android build --apk
+          pnpm tauri android build --apk true
+
+      - name: Rename APK
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"  # 去掉 v 前缀
+          APK_DIR="src-tauri/gen/android/app/build/outputs/apk/universal/release"
+          APK_FILE=$(find "$APK_DIR" -name "*.apk" | head -1)
+          if [ -n "$APK_FILE" ]; then
+            mv "$APK_FILE" "$APK_DIR/DNS.Orchestrator_${VERSION}_android.apk"
+            echo "Renamed to: DNS.Orchestrator_${VERSION}_android.apk"
+          fi
 
       - name: Upload APK to Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 更新 latest.json 添加 Android 平台
+  update-latest-json:
+    needs: [release, release-android]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download latest.json from release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 等待文件可用
+          sleep 10
+          # 下载 latest.json
+          gh release download ${{ github.ref_name }} \
+            --repo ${{ github.repository }} \
+            --pattern "latest.json" \
+            --dir .
+        continue-on-error: true
+
+      - name: Add Android platform to latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f latest.json ]; then
+            # 从 release 中获取 APK 文件名
+            APK_NAME=$(gh release view ${{ github.ref_name }} --repo ${{ github.repository }} --json assets -q '.assets[] | select(.name | endswith(".apk")) | .name' | head -1)
+
+            if [ -n "$APK_NAME" ]; then
+              APK_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${APK_NAME}"
+
+              # 使用 jq 添加 Android 平台
+              jq --arg url "$APK_URL" '.platforms.android = {"url": $url}' latest.json > latest.json.tmp
+              mv latest.json.tmp latest.json
+
+              echo "Updated latest.json with Android URL: $APK_URL"
+              cat latest.json
+            else
+              echo "No APK found in release, skipping..."
+            fi
+          else
+            echo "latest.json not found, skipping..."
+          fi
+
+      - name: Upload updated latest.json
+        if: ${{ hashFiles('latest.json') != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: latest.json
           draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
