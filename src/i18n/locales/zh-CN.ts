@@ -192,6 +192,10 @@ export default {
     retrying: "下载失败，正在重试 ({{current}}/{{max}})",
     retryFailed: "重试失败",
     retryFailedDesc: "已重试 {{count}} 次，请稍后再试",
+    // Update dialog
+    updateDialogTitle: "发现新版本",
+    releaseNotes: "更新内容",
+    remindLater: "稍后提醒",
   },
   main: {
     selectDomain: "请从左侧选择一个域名",

@@ -3,6 +3,7 @@ import { SettingsPage } from "@/components/settings/SettingsPage"
 import { ToolboxPage } from "@/components/toolbox/ToolboxPage"
 import { Toaster } from "@/components/ui/sonner"
 import { StatusBar } from "@/components/ui/status-bar"
+import { UpdateDialog } from "@/components/ui/update-dialog"
 import { useIsMobile } from "@/hooks/useMediaQuery"
 import { initTheme, useDomainStore } from "@/stores"
 import { useUpdaterStore } from "@/stores/updaterStore"
@@ -13,7 +14,7 @@ type View = "main" | "settings" | "toolbox"
 
 function App() {
   const { t } = useTranslation()
-  const { checkForUpdates } = useUpdaterStore()
+  const { checkForUpdates, showUpdateDialog, setShowUpdateDialog } = useUpdaterStore()
   const { selectDomain } = useDomainStore()
   const [currentView, setCurrentView] = useState<View>("main")
   const isMobile = useIsMobile()
@@ -60,6 +61,8 @@ function App() {
       </AppLayout>
       {/* 桌面端显示底部状态栏 */}
       {!isMobile && <StatusBar onOpenSettings={handleOpenSettings} />}
+      {/* 更新对话框 */}
+      <UpdateDialog open={showUpdateDialog} onOpenChange={setShowUpdateDialog} />
       {/* Toast 位置：移动端底部居中，桌面端右上角 */}
       <Toaster richColors position={isMobile ? "bottom-center" : "top-right"} />
     </>

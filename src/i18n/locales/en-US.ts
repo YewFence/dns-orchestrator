@@ -195,6 +195,10 @@ export default {
     retrying: "Download failed, retrying ({{current}}/{{max}})",
     retryFailed: "Retry failed",
     retryFailedDesc: "Retried {{count}} times, please try again later",
+    // Update dialog
+    updateDialogTitle: "Update Available",
+    releaseNotes: "Release Notes",
+    remindLater: "Remind Later",
   },
   main: {
     selectDomain: "Please select a domain from the left",

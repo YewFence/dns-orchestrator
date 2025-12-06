@@ -2,7 +2,6 @@ import { cn } from "@/lib/utils"
 import { useUpdaterStore } from "@/stores/updaterStore"
 import { Check, Download, Loader2, RefreshCw, Settings } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
 
 interface StatusBarProps {
   onOpenSettings: () => void
@@ -12,7 +11,7 @@ type StatusType = "idle" | "checking" | "available" | "downloading" | "retrying"
 
 export function StatusBar({ onOpenSettings }: StatusBarProps) {
   const { t } = useTranslation()
-  const { checking, downloading, progress, available, retryCount, maxRetries, downloadAndInstall } =
+  const { checking, downloading, progress, available, retryCount, maxRetries, setShowUpdateDialog } =
     useUpdaterStore()
 
   // 获取当前状态类型
@@ -27,19 +26,13 @@ export function StatusBar({ onOpenSettings }: StatusBarProps) {
 
   const statusType = getStatusType()
 
-  // 左侧是否可点击（有更新时可点击下载）
+  // 左侧是否可点击（有更新时可点击打开对话框）
   const isLeftClickable = statusType === "available"
 
-  // 处理点击更新
-  const handleClickUpdate = async () => {
+  // 处理点击更新 - 打开对话框
+  const handleClickUpdate = () => {
     if (!isLeftClickable) return
-    try {
-      await downloadAndInstall()
-    } catch {
-      toast.error(t("settings.retryFailed"), {
-        description: t("settings.retryFailedDesc", { count: maxRetries }),
-      })
-    }
+    setShowUpdateDialog(true)
   }
 
   // 获取左侧图标

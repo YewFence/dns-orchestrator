@@ -53,16 +53,27 @@ interface UpdaterState {
   isPlatformUnsupported: boolean
   retryCount: number
   maxRetries: number
+  showUpdateDialog: boolean
   checkForUpdates: () => Promise<UpdateInfo | null>
   downloadAndInstall: () => Promise<void>
   skipVersion: () => void
   reset: () => void
   resetUpToDate: () => void
+  setShowUpdateDialog: (show: boolean) => void
 }
 
 // 判断是否为 Android 更新
 const isAndroidUpdate = (update: UpdateInfo): update is AndroidUpdate => {
   return "url" in update && !("downloadAndInstall" in update)
+}
+
+// 统一获取更新说明
+export const getUpdateNotes = (update: UpdateInfo | null): string => {
+  if (!update) return ""
+  if (isAndroidUpdate(update)) {
+    return update.notes || ""
+  }
+  return update.body || ""
 }
 
 export const useUpdaterStore = create<UpdaterState>((set, get) => ({
@@ -75,6 +86,9 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
   isPlatformUnsupported: false,
   retryCount: 0,
   maxRetries: MAX_RETRIES,
+  showUpdateDialog: false,
+
+  setShowUpdateDialog: (show: boolean) => set({ showUpdateDialog: show }),
 
   checkForUpdates: async () => {
     set({ checking: true, error: null, upToDate: false, isPlatformUnsupported: false })
@@ -98,7 +112,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
             return null
           }
           console.log("[Updater] Update available:", update.version)
-          set({ available: update, checking: false, upToDate: false })
+          set({ available: update, checking: false, upToDate: false, showUpdateDialog: true })
           return update
         } else {
           console.log("[Updater] No update available")
@@ -122,7 +136,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
             return null
           }
           console.log("[Updater] Update available:", update.version)
-          set({ available: update, checking: false, upToDate: false })
+          set({ available: update, checking: false, upToDate: false, showUpdateDialog: true })
         } else {
           console.log("[Updater] No update available")
           set({ available: null, checking: false, upToDate: true })
@@ -297,6 +311,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
       upToDate: false,
       isPlatformUnsupported: false,
       retryCount: 0,
+      showUpdateDialog: false,
     })
   },
 

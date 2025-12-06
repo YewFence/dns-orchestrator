@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch"
 import { type LanguageCode, supportedLanguages } from "@/i18n"
 import { cn } from "@/lib/utils"
 import { useSettingsStore } from "@/stores/settingsStore"
-import { useUpdaterStore } from "@/stores/updaterStore"
+import { getUpdateNotes, useUpdaterStore } from "@/stores/updaterStore"
 import { openUrl } from "@tauri-apps/plugin-opener"
 import {
   ArrowLeft,
@@ -283,6 +283,15 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
                       ? t("settings.platformNotSupported")
                       : t("settings.updateCheckError")}
                   </p>
+                )}
+                {/* 发行说明 */}
+                {available && getUpdateNotes(available) && (
+                  <div className="space-y-2 border-t pt-3">
+                    <p className="font-medium text-sm">{t("settings.releaseNotes")}</p>
+                    <ScrollArea className="h-[150px] rounded-md border bg-muted/50 p-3">
+                      <pre className="whitespace-pre-wrap text-xs">{getUpdateNotes(available)}</pre>
+                    </ScrollArea>
+                  </div>
                 )}
               </div>
             </div>
