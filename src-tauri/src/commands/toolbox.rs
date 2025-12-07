@@ -1,3 +1,4 @@
+use futures::future::join_all;
 use hickory_resolver::{
     config::{ResolverConfig, ResolverOpts},
     name_server::TokioConnectionProvider,
@@ -6,7 +7,10 @@ use hickory_resolver::{
 use regex::Regex;
 use whois_rust::{WhoIs, WhoIsLookupOptions};
 
-use crate::types::{ApiResponse, DnsLookupRecord, WhoisResult};
+use crate::types::{
+    ApiResponse, CertChainItem, DnsLookupRecord, IpGeoInfo, IpLookupResult, SslCertInfo,
+    SslCheckResult, WhoisResult,
+};
 
 /// 嵌入 WHOIS 服务器配置
 const WHOIS_SERVERS: &str = include_str!("../resources/whois_servers.json");
@@ -372,13 +376,21 @@ pub async fn dns_lookup(
             }
         }
         "ALL" => {
-            // 查询所有常见类型
-            let types = vec!["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SOA"];
-            for t in types {
+            // 并发查询所有记录类型
+            let types = vec![
+                "A", "AAAA", "CNAME", "MX", "TXT", "NS", "SOA", "SRV", "CAA", "PTR",
+            ];
+            let futures: Vec<_> = types
+                .into_iter()
+                .map(|t| Box::pin(dns_lookup(domain.clone(), t.to_string())))
+                .collect();
+
+            let results = join_all(futures).await;
+            for result in results {
                 if let Ok(ApiResponse {
                     data: Some(mut type_records),
                     ..
-                }) = Box::pin(dns_lookup(domain.clone(), t.to_string())).await
+                }) = result
                 {
                     records.append(&mut type_records);
                 }
@@ -390,4 +402,584 @@ pub async fn dns_lookup(
     }
 
     Ok(ApiResponse::success(records))
+}
+
+/// ip-api.com 响应结构
+#[derive(serde::Deserialize)]
+struct IpApiResponse {
+    status: String,
+    message: Option<String>,
+    query: Option<String>,
+    country: Option<String>,
+    #[serde(rename = "countryCode")]
+    country_code: Option<String>,
+    region: Option<String>,
+    city: Option<String>,
+    lat: Option<f64>,
+    lon: Option<f64>,
+    timezone: Option<String>,
+    isp: Option<String>,
+    org: Option<String>,
+    #[serde(rename = "as")]
+    as_number: Option<String>,
+    asname: Option<String>,
+}
+
+/// 查询单个 IP 的地理位置
+async fn lookup_single_ip(ip: &str, client: &reqwest::Client) -> Result<IpGeoInfo, String> {
+    let url = format!(
+        "http://ip-api.com/json/{}?fields=status,message,query,country,countryCode,region,city,lat,lon,timezone,isp,org,as,asname",
+        ip
+    );
+
+    let response: IpApiResponse = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("请求失败: {}", e))?
+        .json()
+        .await
+        .map_err(|e| format!("解析失败: {}", e))?;
+
+    if response.status != "success" {
+        return Err(response.message.unwrap_or_else(|| "查询失败".to_string()));
+    }
+
+    let actual_ip = response.query.unwrap_or_else(|| ip.to_string());
+    let ip_version = if actual_ip.contains(':') {
+        "IPv6"
+    } else {
+        "IPv4"
+    };
+
+    Ok(IpGeoInfo {
+        ip: actual_ip,
+        ip_version: ip_version.to_string(),
+        country: response.country,
+        country_code: response.country_code,
+        region: response.region,
+        city: response.city,
+        latitude: response.lat,
+        longitude: response.lon,
+        timezone: response.timezone,
+        isp: response.isp,
+        org: response.org,
+        asn: response.as_number,
+        as_name: response.asname,
+    })
+}
+
+/// IP/域名 地理位置查询
+/// 支持直接输入 IP 地址或域名，域名会解析出所有 IPv4/IPv6 地址
+#[tauri::command]
+pub async fn ip_lookup(query: String) -> Result<ApiResponse<IpLookupResult>, String> {
+    let query = query.trim().to_string();
+    if query.is_empty() {
+        return Err("请输入 IP 地址或域名".to_string());
+    }
+
+    let client = reqwest::Client::new();
+
+    // 检查是否为 IP 地址
+    if let Ok(ip_addr) = query.parse::<std::net::IpAddr>() {
+        // 直接查询 IP
+        let result = lookup_single_ip(&query, &client).await?;
+        return Ok(ApiResponse::success(IpLookupResult {
+            query,
+            is_domain: false,
+            results: vec![result],
+        }));
+    }
+
+    // 作为域名处理，解析 A 和 AAAA 记录
+    let provider = TokioConnectionProvider::default();
+    let resolver = TokioResolver::builder_with_config(ResolverConfig::default(), provider)
+        .with_options(ResolverOpts::default())
+        .build();
+
+    let mut ips: Vec<String> = Vec::new();
+
+    // 解析 IPv4 (A 记录)
+    if let Ok(response) = resolver.ipv4_lookup(&query).await {
+        for ip in response.iter() {
+            ips.push(ip.to_string());
+        }
+    }
+
+    // 解析 IPv6 (AAAA 记录)
+    if let Ok(response) = resolver.ipv6_lookup(&query).await {
+        for ip in response.iter() {
+            ips.push(ip.to_string());
+        }
+    }
+
+    if ips.is_empty() {
+        return Err(format!("无法解析域名: {}", query));
+    }
+
+    // 查询每个 IP 的地理位置（并行）
+    let mut results = Vec::new();
+    for ip in ips {
+        match lookup_single_ip(&ip, &client).await {
+            Ok(info) => results.push(info),
+            Err(e) => {
+                // 记录错误但继续处理其他 IP
+                eprintln!("查询 IP {} 失败: {}", ip, e);
+            }
+        }
+    }
+
+    if results.is_empty() {
+        return Err("所有 IP 地址查询均失败".to_string());
+    }
+
+    Ok(ApiResponse::success(IpLookupResult {
+        query,
+        is_domain: true,
+        results,
+    }))
+}
+
+/// 检查 HTTP 连接是否可用
+fn check_http_connection(domain: &str, port: u16) -> bool {
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+
+    if let Ok(mut stream) = TcpStream::connect(format!("{}:{}", domain, port)) {
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .ok();
+        stream
+            .set_write_timeout(Some(std::time::Duration::from_secs(5)))
+            .ok();
+
+        let request = format!(
+            "HEAD / HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
+            domain
+        );
+
+        if stream.write_all(request.as_bytes()).is_ok() {
+            let mut response = vec![0u8; 128];
+            if stream.read(&mut response).is_ok() {
+                let response_str = String::from_utf8_lossy(&response);
+                // 检查是否是 HTTP 响应
+                return response_str.starts_with("HTTP/");
+            }
+        }
+    }
+    false
+}
+
+/// SSL 证书检查（桌面端使用 native-tls）
+/// 支持自定义端口，如果 HTTPS 连接失败会回退检测 HTTP
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub async fn ssl_check(
+    domain: String,
+    port: Option<u16>,
+) -> Result<ApiResponse<SslCheckResult>, String> {
+    use native_tls::TlsConnector;
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+    use x509_parser::prelude::*;
+
+    let port = port.unwrap_or(443);
+    let domain_clone = domain.clone();
+
+    tokio::task::spawn_blocking(move || {
+        // 尝试建立 TCP 连接
+        let stream = match TcpStream::connect(format!("{}:{}", domain_clone, port)) {
+            Ok(s) => s,
+            Err(e) => {
+                // 连接失败
+                return Ok(ApiResponse::success(SslCheckResult {
+                    domain: domain_clone,
+                    port,
+                    connection_status: "failed".to_string(),
+                    cert_info: None,
+                    error: Some(format!("连接失败: {}", e)),
+                }));
+            }
+        };
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(10)))
+            .ok();
+
+        // 尝试建立 TLS 连接
+        let connector = match TlsConnector::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+        {
+            Ok(c) => c,
+            Err(e) => {
+                return Ok(ApiResponse::success(SslCheckResult {
+                    domain: domain_clone,
+                    port,
+                    connection_status: "failed".to_string(),
+                    cert_info: None,
+                    error: Some(format!("TLS 初始化失败: {}", e)),
+                }));
+            }
+        };
+
+        let mut tls_stream = match connector.connect(&domain_clone, stream) {
+            Ok(s) => s,
+            Err(_) => {
+                // TLS 握手失败，检测是否是 HTTP 连接
+                if check_http_connection(&domain_clone, port) {
+                    return Ok(ApiResponse::success(SslCheckResult {
+                        domain: domain_clone,
+                        port,
+                        connection_status: "http".to_string(),
+                        cert_info: None,
+                        error: None,
+                    }));
+                }
+                return Ok(ApiResponse::success(SslCheckResult {
+                    domain: domain_clone,
+                    port,
+                    connection_status: "failed".to_string(),
+                    cert_info: None,
+                    error: Some("TLS 握手失败，且非 HTTP 连接".to_string()),
+                }));
+            }
+        };
+
+        // 发送 HTTP 请求
+        let request = format!(
+            "HEAD / HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
+            domain_clone
+        );
+        tls_stream.write_all(request.as_bytes()).ok();
+        let mut response = vec![0u8; 1024];
+        tls_stream.read(&mut response).ok();
+
+        // 获取证书
+        let cert_chain = match tls_stream.peer_certificate() {
+            Ok(Some(c)) => c,
+            _ => {
+                return Ok(ApiResponse::success(SslCheckResult {
+                    domain: domain_clone,
+                    port,
+                    connection_status: "https".to_string(),
+                    cert_info: None,
+                    error: Some("未找到证书".to_string()),
+                }));
+            }
+        };
+
+        let cert_der = match cert_chain.to_der() {
+            Ok(d) => d,
+            Err(e) => {
+                return Ok(ApiResponse::success(SslCheckResult {
+                    domain: domain_clone,
+                    port,
+                    connection_status: "https".to_string(),
+                    cert_info: None,
+                    error: Some(format!("证书编码失败: {}", e)),
+                }));
+            }
+        };
+
+        // 解析证书
+        let (_, cert) = match X509Certificate::from_der(&cert_der) {
+            Ok(c) => c,
+            Err(e) => {
+                return Ok(ApiResponse::success(SslCheckResult {
+                    domain: domain_clone,
+                    port,
+                    connection_status: "https".to_string(),
+                    cert_info: None,
+                    error: Some(format!("证书解析失败: {}", e)),
+                }));
+            }
+        };
+
+        // 提取信息
+        let subject = cert.subject().to_string();
+        let issuer = cert.issuer().to_string();
+        let valid_from = cert.validity().not_before.to_rfc2822().unwrap_or_default();
+        let valid_to = cert.validity().not_after.to_rfc2822().unwrap_or_default();
+
+        // 计算剩余天数
+        let now = chrono::Utc::now();
+        let not_after = chrono::DateTime::parse_from_rfc2822(&valid_to)
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+            .unwrap_or(now);
+        let days_remaining = (not_after - now).num_days();
+        let is_expired = days_remaining < 0;
+
+        // 验证证书是否有效
+        let is_valid = TlsConnector::new()
+            .map(|c| {
+                TcpStream::connect(format!("{}:{}", domain_clone, port))
+                    .ok()
+                    .and_then(|s| c.connect(&domain_clone, s).ok())
+                    .is_some()
+            })
+            .unwrap_or(false);
+
+        // 提取 SAN
+        let san: Vec<String> = cert
+            .subject_alternative_name()
+            .ok()
+            .flatten()
+            .map(|ext| {
+                ext.value
+                    .general_names
+                    .iter()
+                    .filter_map(|name| match name {
+                        x509_parser::extensions::GeneralName::DNSName(dns) => {
+                            Some((*dns).to_string())
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let serial_number = cert.serial.to_str_radix(16).to_uppercase();
+        let signature_algorithm = cert.signature_algorithm.algorithm.to_string();
+
+        let certificate_chain = vec![CertChainItem {
+            subject: subject.clone(),
+            issuer: issuer.clone(),
+            is_ca: cert.is_ca(),
+        }];
+
+        Ok(ApiResponse::success(SslCheckResult {
+            domain: domain_clone.clone(),
+            port,
+            connection_status: "https".to_string(),
+            cert_info: Some(SslCertInfo {
+                domain: domain_clone,
+                issuer,
+                subject,
+                valid_from,
+                valid_to,
+                days_remaining,
+                is_expired,
+                is_valid,
+                san,
+                serial_number,
+                signature_algorithm,
+                certificate_chain,
+            }),
+            error: None,
+        }))
+    })
+    .await
+    .map_err(|e| format!("任务执行失败: {}", e))?
+}
+
+/// SSL 证书检查（Android 使用 rustls）
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn ssl_check(
+    domain: String,
+    port: Option<u16>,
+) -> Result<ApiResponse<SslCheckResult>, String> {
+    use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+    use std::sync::Arc;
+    use x509_parser::prelude::*;
+
+    let port = port.unwrap_or(443);
+    let domain_clone = domain.clone();
+
+    tokio::task::spawn_blocking(move || {
+        // 尝试建立 TCP 连接
+        let stream = match TcpStream::connect(format!("{}:{}", domain_clone, port)) {
+            Ok(s) => s,
+            Err(e) => {
+                return Ok(ApiResponse::success(SslCheckResult {
+                    domain: domain_clone,
+                    port,
+                    connection_status: "failed".to_string(),
+                    cert_info: None,
+                    error: Some(format!("连接失败: {}", e)),
+                }));
+            }
+        };
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(10)))
+            .ok();
+
+        // 配置 rustls
+        let mut root_store = RootCertStore::empty();
+        root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+
+        let config = ClientConfig::builder()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
+
+        let server_name = match domain_clone.clone().try_into() {
+            Ok(n) => n,
+            Err(_) => {
+                return Ok(ApiResponse::success(SslCheckResult {
+                    domain: domain_clone,
+                    port,
+                    connection_status: "failed".to_string(),
+                    cert_info: None,
+                    error: Some("无效的域名".to_string()),
+                }));
+            }
+        };
+
+        let conn = match ClientConnection::new(Arc::new(config), server_name) {
+            Ok(c) => c,
+            Err(e) => {
+                // TLS 连接失败，检测是否是 HTTP 连接
+                if check_http_connection(&domain_clone, port) {
+                    return Ok(ApiResponse::success(SslCheckResult {
+                        domain: domain_clone,
+                        port,
+                        connection_status: "http".to_string(),
+                        cert_info: None,
+                        error: None,
+                    }));
+                }
+                return Ok(ApiResponse::success(SslCheckResult {
+                    domain: domain_clone,
+                    port,
+                    connection_status: "failed".to_string(),
+                    cert_info: None,
+                    error: Some(format!("TLS 初始化失败: {}", e)),
+                }));
+            }
+        };
+
+        let mut tls_stream = StreamOwned::new(conn, stream);
+
+        // 发送请求触发握手
+        let request = format!(
+            "HEAD / HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
+            domain_clone
+        );
+        if tls_stream.write_all(request.as_bytes()).is_err() {
+            // 写入失败，检测是否是 HTTP 连接
+            if check_http_connection(&domain_clone, port) {
+                return Ok(ApiResponse::success(SslCheckResult {
+                    domain: domain_clone,
+                    port,
+                    connection_status: "http".to_string(),
+                    cert_info: None,
+                    error: None,
+                }));
+            }
+            return Ok(ApiResponse::success(SslCheckResult {
+                domain: domain_clone,
+                port,
+                connection_status: "failed".to_string(),
+                cert_info: None,
+                error: Some("TLS 握手失败".to_string()),
+            }));
+        }
+        let mut response = vec![0u8; 1024];
+        tls_stream.read(&mut response).ok();
+
+        // 获取证书
+        let certs = match tls_stream.conn.peer_certificates() {
+            Some(c) if !c.is_empty() => c,
+            _ => {
+                return Ok(ApiResponse::success(SslCheckResult {
+                    domain: domain_clone,
+                    port,
+                    connection_status: "https".to_string(),
+                    cert_info: None,
+                    error: Some("未找到证书".to_string()),
+                }));
+            }
+        };
+
+        let cert_der = &certs[0].0;
+
+        // 解析证书
+        let (_, cert) = match X509Certificate::from_der(cert_der) {
+            Ok(c) => c,
+            Err(e) => {
+                return Ok(ApiResponse::success(SslCheckResult {
+                    domain: domain_clone,
+                    port,
+                    connection_status: "https".to_string(),
+                    cert_info: None,
+                    error: Some(format!("证书解析失败: {}", e)),
+                }));
+            }
+        };
+
+        // 提取信息
+        let subject = cert.subject().to_string();
+        let issuer = cert.issuer().to_string();
+        let valid_from = cert.validity().not_before.to_rfc2822().unwrap_or_default();
+        let valid_to = cert.validity().not_after.to_rfc2822().unwrap_or_default();
+
+        // 计算剩余天数
+        let now = chrono::Utc::now();
+        let not_after = chrono::DateTime::parse_from_rfc2822(&valid_to)
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+            .unwrap_or(now);
+        let days_remaining = (not_after - now).num_days();
+        let is_expired = days_remaining < 0;
+        let is_valid = !is_expired;
+
+        // 提取 SAN
+        let san: Vec<String> = cert
+            .subject_alternative_name()
+            .ok()
+            .flatten()
+            .map(|ext| {
+                ext.value
+                    .general_names
+                    .iter()
+                    .filter_map(|name| match name {
+                        x509_parser::extensions::GeneralName::DNSName(dns) => {
+                            Some((*dns).to_string())
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let serial_number = cert.serial.to_str_radix(16).to_uppercase();
+        let signature_algorithm = cert.signature_algorithm.algorithm.to_string();
+
+        let certificate_chain: Vec<CertChainItem> = certs
+            .iter()
+            .filter_map(|c| {
+                X509Certificate::from_der(&c.0)
+                    .ok()
+                    .map(|(_, parsed)| CertChainItem {
+                        subject: parsed.subject().to_string(),
+                        issuer: parsed.issuer().to_string(),
+                        is_ca: parsed.is_ca(),
+                    })
+            })
+            .collect();
+
+        Ok(ApiResponse::success(SslCheckResult {
+            domain: domain_clone.clone(),
+            port,
+            connection_status: "https".to_string(),
+            cert_info: Some(SslCertInfo {
+                domain: domain_clone,
+                issuer,
+                subject,
+                valid_from,
+                valid_to,
+                days_remaining,
+                is_expired,
+                is_valid,
+                san,
+                serial_number,
+                signature_algorithm,
+                certificate_chain,
+            }),
+            error: None,
+        }))
+    })
+    .await
+    .map_err(|e| format!("任务执行失败: {}", e))?
 }

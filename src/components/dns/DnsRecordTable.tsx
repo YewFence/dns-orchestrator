@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -33,11 +34,13 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  CheckSquare,
   Filter,
   Loader2,
   Plus,
   RefreshCw,
   Search,
+  Trash2,
   X,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -75,10 +78,20 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
     fetchRecords,
     fetchMoreRecords,
     deleteRecord,
+    // 批量选择
+    selectedRecordIds,
+    isSelectMode,
+    isBatchDeleting,
+    toggleSelectMode,
+    toggleRecordSelection,
+    selectAllRecords,
+    clearSelection,
+    batchDeleteRecords,
   } = useDnsStore()
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<DnsRecord | null>(null)
   const [deletingRecord, setDeletingRecord] = useState<DnsRecord | null>(null)
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false)
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>(null)
   // 本地搜索输入状态（用于即时显示）
@@ -271,10 +284,23 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
             <Badge variant="secondary">{totalCount}</Badge>
             <span className="text-muted-foreground text-sm">{t("common.records")}</span>
           </div>
-          <Button size="sm" onClick={() => setShowAddForm(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t("dns.addRecord")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={isSelectMode ? "secondary" : "outline"}
+              size="sm"
+              onClick={toggleSelectMode}
+              disabled={records.length === 0}
+            >
+              <CheckSquare className="mr-2 h-4 w-4" />
+              {isSelectMode ? t("common.cancel") : t("dns.batchSelect")}
+            </Button>
+            {!isSelectMode && (
+              <Button size="sm" onClick={() => setShowAddForm(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                {t("dns.addRecord")}
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* 搜索和筛选 */}
@@ -370,6 +396,23 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
+                {isSelectMode && (
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={
+                        sortedRecords.length > 0 &&
+                        sortedRecords.every((r) => selectedRecordIds.has(r.id))
+                      }
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          selectAllRecords()
+                        } else {
+                          clearSelection()
+                        }
+                      }}
+                    />
+                  </TableHead>
+                )}
                 <TableHead
                   className="w-16 cursor-pointer select-none hover:bg-muted/50"
                   onClick={() => handleSort("type")}
@@ -414,7 +457,7 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
               {sortedRecords.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={supportsProxy ? 6 : 5}
+                    colSpan={supportsProxy ? 6 : 5 + (isSelectMode ? 1 : 0)}
                     className="py-8 text-center text-muted-foreground"
                   >
                     {isLoading ? (
@@ -429,22 +472,38 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
               ) : (
                 <>
                   {sortedRecords.map((record) => (
-                    <DnsRecordRow
-                      key={record.id}
-                      record={record}
-                      onEdit={() => handleEdit(record)}
-                      onDelete={() => handleDelete(record)}
-                      disabled={isDeleting}
-                      showProxy={supportsProxy}
-                    />
+                    <TableRow key={record.id}>
+                      {isSelectMode && (
+                        <TableCell className="w-10">
+                          <Checkbox
+                            checked={selectedRecordIds.has(record.id)}
+                            onCheckedChange={() => toggleRecordSelection(record.id)}
+                          />
+                        </TableCell>
+                      )}
+                      <DnsRecordRow
+                        record={record}
+                        onEdit={() => handleEdit(record)}
+                        onDelete={() => handleDelete(record)}
+                        disabled={isDeleting || isSelectMode}
+                        showProxy={supportsProxy}
+                        asFragment
+                      />
+                    </TableRow>
                   ))}
                   {/* 无限滚动触发行 */}
                   <TableRow ref={setSentinelRef} className="h-1 border-0">
-                    <TableCell colSpan={supportsProxy ? 6 : 5} className="p-0" />
+                    <TableCell
+                      colSpan={supportsProxy ? 6 : 5 + (isSelectMode ? 1 : 0)}
+                      className="p-0"
+                    />
                   </TableRow>
                   {isLoadingMore && (
                     <TableRow className="border-0">
-                      <TableCell colSpan={supportsProxy ? 6 : 5} className="py-4 text-center">
+                      <TableCell
+                        colSpan={supportsProxy ? 6 : 5 + (isSelectMode ? 1 : 0)}
+                        className="py-4 text-center"
+                      >
                         <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
                       </TableCell>
                     </TableRow>
@@ -490,6 +549,55 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Batch Delete Confirmation Dialog */}
+      <AlertDialog open={showBatchDeleteConfirm} onOpenChange={setShowBatchDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("dns.batchDeleteConfirm")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("dns.batchDeleteConfirmDesc", { count: selectedRecordIds.size })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                setShowBatchDeleteConfirm(false)
+                await batchDeleteRecords(accountId, domainId)
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {t("common.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Batch Action Bar */}
+      {isSelectMode && selectedRecordIds.size > 0 && (
+        <div className="fixed inset-x-0 bottom-4 z-50 mx-auto flex w-fit items-center gap-3 rounded-full border bg-background px-4 py-2 shadow-lg">
+          <span className="text-muted-foreground text-sm">
+            {t("dns.selectedCount", { count: selectedRecordIds.size })}
+          </span>
+          <Button variant="ghost" size="sm" onClick={clearSelection}>
+            {t("common.deselectAll")}
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setShowBatchDeleteConfirm(true)}
+            disabled={isBatchDeleting}
+          >
+            {isBatchDeleting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="mr-2 h-4 w-4" />
+            )}
+            {t("dns.batchDelete")}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

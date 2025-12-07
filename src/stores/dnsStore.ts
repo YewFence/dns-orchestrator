@@ -1,5 +1,7 @@
 import type {
   ApiResponse,
+  BatchDeleteRequest,
+  BatchDeleteResult,
   CreateDnsRecordRequest,
   DnsRecord,
   PaginatedResponse,
@@ -25,6 +27,10 @@ interface DnsState {
   // 搜索状态
   keyword: string
   recordType: string
+  // 批量选择状态
+  selectedRecordIds: Set<string>
+  isSelectMode: boolean
+  isBatchDeleting: boolean
 
   fetchRecords: (
     accountId: string,
@@ -42,6 +48,12 @@ interface DnsState {
   ) => Promise<boolean>
   deleteRecord: (accountId: string, recordId: string, domainId: string) => Promise<boolean>
   clearRecords: () => void
+  // 批量选择方法
+  toggleSelectMode: () => void
+  toggleRecordSelection: (recordId: string) => void
+  selectAllRecords: () => void
+  clearSelection: () => void
+  batchDeleteRecords: (accountId: string, domainId: string) => Promise<BatchDeleteResult | null>
 }
 
 export const useDnsStore = create<DnsState>((set, get) => ({
@@ -56,6 +68,9 @@ export const useDnsStore = create<DnsState>((set, get) => ({
   totalCount: 0,
   keyword: "",
   recordType: "",
+  selectedRecordIds: new Set(),
+  isSelectMode: false,
+  isBatchDeleting: false,
 
   setSearchParams: (keyword, recordType) => {
     set({ keyword, recordType })
@@ -243,5 +258,80 @@ export const useDnsStore = create<DnsState>((set, get) => ({
       totalCount: 0,
       keyword: "",
       recordType: "",
+      selectedRecordIds: new Set(),
+      isSelectMode: false,
     }),
+
+  toggleSelectMode: () => {
+    const { isSelectMode } = get()
+    set({
+      isSelectMode: !isSelectMode,
+      selectedRecordIds: new Set(), // 切换时清空选择
+    })
+  },
+
+  toggleRecordSelection: (recordId) => {
+    const { selectedRecordIds } = get()
+    const newSet = new Set(selectedRecordIds)
+    if (newSet.has(recordId)) {
+      newSet.delete(recordId)
+    } else {
+      newSet.add(recordId)
+    }
+    set({ selectedRecordIds: newSet })
+  },
+
+  selectAllRecords: () => {
+    const { records } = get()
+    set({ selectedRecordIds: new Set(records.map((r) => r.id)) })
+  },
+
+  clearSelection: () => {
+    set({ selectedRecordIds: new Set() })
+  },
+
+  batchDeleteRecords: async (accountId, domainId) => {
+    const { selectedRecordIds } = get()
+    if (selectedRecordIds.size === 0) return null
+
+    set({ isBatchDeleting: true })
+    try {
+      const request: BatchDeleteRequest = {
+        domainId,
+        recordIds: Array.from(selectedRecordIds),
+      }
+      const response = await invoke<ApiResponse<BatchDeleteResult>>("batch_delete_dns_records", {
+        accountId,
+        request,
+      })
+
+      if (response.success && response.data) {
+        const result = response.data
+        // 从列表中移除成功删除的记录
+        const deletedIds = new Set(
+          request.recordIds.filter((id) => !result.failures.some((f) => f.recordId === id))
+        )
+        set((state) => ({
+          records: state.records.filter((r) => !deletedIds.has(r.id)),
+          totalCount: Math.max(0, state.totalCount - result.successCount),
+          selectedRecordIds: new Set(),
+          isSelectMode: false,
+        }))
+
+        if (result.failedCount === 0) {
+          toast.success(`成功删除 ${result.successCount} 条记录`)
+        } else {
+          toast.warning(`成功删除 ${result.successCount} 条记录，${result.failedCount} 条失败`)
+        }
+        return result
+      }
+      toast.error(response.error?.message || "批量删除失败")
+      return null
+    } catch (err) {
+      toast.error(String(err))
+      return null
+    } finally {
+      set({ isBatchDeleting: false })
+    }
+  },
 }))

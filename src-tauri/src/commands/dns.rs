@@ -109,3 +109,55 @@ pub async fn delete_dns_record(
 
     Ok(ApiResponse::success(()))
 }
+
+/// 批量删除 DNS 记录
+#[tauri::command]
+pub async fn batch_delete_dns_records(
+    state: State<'_, AppState>,
+    account_id: String,
+    request: BatchDeleteRequest,
+) -> Result<ApiResponse<BatchDeleteResult>, String> {
+    // 获取 provider
+    let provider = state
+        .registry
+        .get(&account_id)
+        .await
+        .ok_or_else(|| DnsError::AccountNotFound(account_id.clone()).to_string())?;
+
+    let mut success_count = 0;
+    let mut failures = Vec::new();
+
+    // 并行删除所有记录
+    let delete_futures: Vec<_> = request
+        .record_ids
+        .iter()
+        .map(|record_id| {
+            let provider = provider.clone();
+            let domain_id = request.domain_id.clone();
+            let record_id = record_id.clone();
+            async move {
+                match provider.delete_record(&record_id, &domain_id).await {
+                    Ok(()) => Ok(record_id),
+                    Err(e) => Err((record_id, e.to_string())),
+                }
+            }
+        })
+        .collect();
+
+    let results = futures::future::join_all(delete_futures).await;
+
+    for result in results {
+        match result {
+            Ok(_) => success_count += 1,
+            Err((record_id, reason)) => {
+                failures.push(BatchDeleteFailure { record_id, reason });
+            }
+        }
+    }
+
+    Ok(ApiResponse::success(BatchDeleteResult {
+        success_count,
+        failed_count: failures.len(),
+        failures,
+    }))
+}

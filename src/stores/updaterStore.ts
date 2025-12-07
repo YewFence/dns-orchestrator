@@ -223,7 +223,8 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
             stack: lastError.stack,
             url: available.url,
             downloaded: `${downloaded} / ${contentLength} bytes`,
-            progress: contentLength > 0 ? `${Math.round((downloaded / contentLength) * 100)}%` : "unknown",
+            progress:
+              contentLength > 0 ? `${Math.round((downloaded / contentLength) * 100)}%` : "unknown",
             errorType: lastError.constructor.name,
           })
 

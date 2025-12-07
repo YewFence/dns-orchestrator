@@ -8,9 +8,9 @@ mod types;
 
 use std::sync::Arc;
 
-use commands::{account, dns, domain, toolbox};
 #[cfg(target_os = "android")]
 use commands::updater;
+use commands::{account, dns, domain, toolbox};
 #[cfg(target_os = "android")]
 use credentials::AndroidCredentialStore;
 use credentials::CredentialStore;
@@ -90,20 +90,19 @@ pub fn run() {
             .plugin(tauri_plugin_apk_installer::init());
     }
 
-    let builder = builder
-        .setup(|app| {
-            // 创建 AppState（需要 AppHandle）
-            let state = AppState::new(app.handle().clone());
+    let builder = builder.setup(|app| {
+        // 创建 AppState（需要 AppHandle）
+        let state = AppState::new(app.handle().clone());
 
-            // 从持久化存储恢复账户
-            if let Err(e) = restore_accounts(&state) {
-                log::error!("Failed to restore accounts: {}", e);
-                // 不阻止应用启动，只记录错误
-            }
+        // 从持久化存储恢复账户
+        if let Err(e) = restore_accounts(&state) {
+            log::error!("Failed to restore accounts: {}", e);
+            // 不阻止应用启动，只记录错误
+        }
 
-            app.manage(state);
-            Ok(())
-        });
+        app.manage(state);
+        Ok(())
+    });
 
     #[cfg(not(target_os = "android"))]
     let builder = builder.invoke_handler(tauri::generate_handler![
@@ -123,9 +122,12 @@ pub fn run() {
         dns::create_dns_record,
         dns::update_dns_record,
         dns::delete_dns_record,
+        dns::batch_delete_dns_records,
         // Toolbox commands
         toolbox::whois_lookup,
         toolbox::dns_lookup,
+        toolbox::ip_lookup,
+        toolbox::ssl_check,
     ]);
 
     #[cfg(target_os = "android")]
@@ -146,9 +148,12 @@ pub fn run() {
         dns::create_dns_record,
         dns::update_dns_record,
         dns::delete_dns_record,
+        dns::batch_delete_dns_records,
         // Toolbox commands
         toolbox::whois_lookup,
         toolbox::dns_lookup,
+        toolbox::ip_lookup,
+        toolbox::ssl_check,
         // Android updater commands
         updater::check_android_update,
         updater::download_apk,

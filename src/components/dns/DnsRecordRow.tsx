@@ -10,6 +10,7 @@ import { TableCell, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { DnsRecord } from "@/types"
 import { MoreHorizontal, Pencil, Shield, ShieldOff, Trash2 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 interface DnsRecordRowProps {
   record: DnsRecord
@@ -17,6 +18,8 @@ interface DnsRecordRowProps {
   onDelete: () => void
   disabled?: boolean
   showProxy?: boolean
+  /** 作为 Fragment 渲染（不包含 TableRow，用于外部添加 checkbox） */
+  asFragment?: boolean
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -30,12 +33,15 @@ const TYPE_COLORS: Record<string, string> = {
   CAA: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
 }
 
-function formatTTL(ttl: number): string {
-  if (ttl === 1) return "自动"
-  if (ttl < 60) return `${ttl} 秒`
-  if (ttl < 3600) return `${Math.floor(ttl / 60)} 分钟`
-  if (ttl < 86400) return `${Math.floor(ttl / 3600)} 小时`
-  return `${Math.floor(ttl / 86400)} 天`
+function formatTTL(
+  ttl: number,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
+  if (ttl === 1) return t("dns.ttlAuto")
+  if (ttl < 60) return t("dns.ttlSeconds", { count: ttl })
+  if (ttl < 3600) return t("dns.ttlMinutes", { count: Math.floor(ttl / 60) })
+  if (ttl < 86400) return t("dns.ttlHours", { count: Math.floor(ttl / 3600) })
+  return t("dns.ttlDay")
 }
 
 export function DnsRecordRow({
@@ -44,9 +50,11 @@ export function DnsRecordRow({
   onDelete,
   disabled = false,
   showProxy = false,
+  asFragment = false,
 }: DnsRecordRowProps) {
-  return (
-    <TableRow>
+  const { t } = useTranslation()
+  const cells = (
+    <>
       <TableCell>
         <Badge variant="secondary" className={TYPE_COLORS[record.type] || ""}>
           {record.type}
@@ -72,7 +80,7 @@ export function DnsRecordRow({
           </Tooltip>
         </TooltipProvider>
       </TableCell>
-      <TableCell className="text-muted-foreground text-sm">{formatTTL(record.ttl)}</TableCell>
+      <TableCell className="text-muted-foreground text-sm">{formatTTL(record.ttl, t)}</TableCell>
       {showProxy && (
         <TableCell>
           {record.proxied !== undefined &&
@@ -93,7 +101,7 @@ export function DnsRecordRow({
           <DropdownMenuContent align="end">
             <DropdownMenuItem onSelect={onEdit} disabled={disabled}>
               <Pencil className="mr-2 h-4 w-4" />
-              编辑
+              {t("common.edit")}
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={onDelete}
@@ -101,11 +109,17 @@ export function DnsRecordRow({
               className="text-destructive focus:text-destructive"
             >
               <Trash2 className="mr-2 h-4 w-4" />
-              删除
+              {t("common.delete")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </TableCell>
-    </TableRow>
+    </>
   )
+
+  if (asFragment) {
+    return cells
+  }
+
+  return <TableRow>{cells}</TableRow>
 }

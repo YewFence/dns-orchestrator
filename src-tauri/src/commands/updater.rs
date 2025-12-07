@@ -144,7 +144,10 @@ pub async fn download_apk(
         .map_err(|e| format!("Failed to download APK: {}", e))?;
 
     if !response.status().is_success() {
-        return Err(format!("Failed to download APK: HTTP {}", response.status()));
+        return Err(format!(
+            "Failed to download APK: HTTP {}",
+            response.status()
+        ));
     }
 
     let content_length = response.content_length().unwrap_or(0);

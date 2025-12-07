@@ -24,7 +24,7 @@ export function AppLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="flex h-screen w-screen flex-col md:flex-row overflow-hidden bg-background md:pb-6">
+    <div className="flex h-screen w-full flex-col md:flex-row overflow-hidden bg-background md:pb-6">
       {/* 移动端顶部导航 - 仅移动端显示 */}
       <header className="flex items-center gap-2 border-b px-4 py-3 md:hidden">
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>

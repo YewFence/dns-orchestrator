@@ -37,6 +37,25 @@ export interface UpdateDnsRecordRequest {
   proxied?: boolean
 }
 
+/** 批量删除请求 */
+export interface BatchDeleteRequest {
+  domainId: string
+  recordIds: string[]
+}
+
+/** 批量删除结果 */
+export interface BatchDeleteResult {
+  successCount: number
+  failedCount: number
+  failures: BatchDeleteFailure[]
+}
+
+/** 批量删除失败项 */
+export interface BatchDeleteFailure {
+  recordId: string
+  reason: string
+}
+
 /** 常用 TTL 选项 */
 export const TTL_OPTIONS = [
   { value: 1, labelKey: "dns.ttlAuto" },

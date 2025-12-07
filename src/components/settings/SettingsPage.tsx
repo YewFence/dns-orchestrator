@@ -209,9 +209,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
                 <Label htmlFor="debug-mode" className="font-medium text-sm">
                   {t("settings.debugMode")}
                 </Label>
-                <p className="text-muted-foreground text-xs">
-                  {t("settings.debugModeDesc")}
-                </p>
+                <p className="text-muted-foreground text-xs">{t("settings.debugModeDesc")}</p>
               </div>
               <Switch id="debug-mode" checked={debugMode} onCheckedChange={setDebugMode} />
             </div>

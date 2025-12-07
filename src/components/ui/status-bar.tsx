@@ -11,8 +11,15 @@ type StatusType = "idle" | "checking" | "available" | "downloading" | "retrying"
 
 export function StatusBar({ onOpenSettings }: StatusBarProps) {
   const { t } = useTranslation()
-  const { checking, downloading, progress, available, retryCount, maxRetries, setShowUpdateDialog } =
-    useUpdaterStore()
+  const {
+    checking,
+    downloading,
+    progress,
+    available,
+    retryCount,
+    maxRetries,
+    setShowUpdateDialog,
+  } = useUpdaterStore()
 
   // 获取当前状态类型
   const getStatusType = (): StatusType => {

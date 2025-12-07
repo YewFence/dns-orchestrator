@@ -56,11 +56,7 @@ export function DnsRecordCard({
             {record.type}
           </Badge>
           <span className="truncate font-mono text-sm">
-            {record.name === "@" ? (
-              <span className="text-muted-foreground">@</span>
-            ) : (
-              record.name
-            )}
+            {record.name === "@" ? <span className="text-muted-foreground">@</span> : record.name}
           </span>
         </div>
         <DropdownMenu>

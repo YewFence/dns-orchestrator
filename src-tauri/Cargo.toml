@@ -1,6 +1,6 @@
 [package]
 name = "dns-orchestrator"
-version = "1.0.8"
+version = "1.0.9"
 description = "A DNS Orchestrator built with Tauri"
 license = "MIT"
 authors = ["AptS-1547 <apts-1547@esaps.net>"]
@@ -79,6 +79,9 @@ aes-gcm = "0.10"
 base64 = "0.22"
 rand = "0.8"
 pbkdf2 = { version = "0.12", features = ["simple"] }
+# SSL 证书检查
+native-tls = "0.2"
+x509-parser = "0.16"
 
 [target."cfg(target_os = \"macos\")".dependencies]
 cocoa = "0.26"
@@ -109,6 +112,10 @@ pbkdf2 = { version = "0.12", features = ["simple"] }
 # DNS 和 WHOIS 查询
 hickory-resolver = "0.25"
 whois-rust = { version = "1.6", features = ["tokio"] }
+# SSL 证书检查 (Android 使用 rustls)
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+webpki-roots = "0.26"
+x509-parser = "0.16"
 
 # Clippy 配置
 [lints.rust]
