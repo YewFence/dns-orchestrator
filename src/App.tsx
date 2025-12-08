@@ -1,3 +1,4 @@
+import { AccountsPage } from "@/components/accounts/AccountsPage"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { SettingsPage } from "@/components/settings/SettingsPage"
 import { ToolboxPage } from "@/components/toolbox/ToolboxPage"
@@ -11,7 +12,7 @@ import { useUpdaterStore } from "@/stores/updaterStore"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
-type View = "main" | "settings" | "toolbox"
+type View = "main" | "settings" | "toolbox" | "accounts"
 
 function App() {
   const { t } = useTranslation()
@@ -45,24 +46,36 @@ function App() {
     setCurrentView("settings")
   }
 
+  const handleOpenAccounts = () => {
+    selectDomain(null)
+    setCurrentView("accounts")
+  }
+
+  // 移动端子页面时隐藏 AppLayout 的 header
+  const shouldHideHeader = isMobile && currentView !== "main"
+
   return (
     <>
       <AppLayout
+        hideHeader={shouldHideHeader}
         onOpenToolbox={() => {
           selectDomain(null)
           setCurrentView("toolbox")
         }}
         onNavigateToMain={() => setCurrentView("main")}
         onOpenSettings={handleOpenSettings}
+        onOpenAccounts={handleOpenAccounts}
       >
         {currentView === "settings" ? (
           <SettingsPage onBack={() => setCurrentView("main")} />
         ) : currentView === "toolbox" ? (
           <ToolboxPage onBack={() => setCurrentView("main")} />
+        ) : currentView === "accounts" ? (
+          <AccountsPage onBack={() => setCurrentView("main")} />
         ) : null}
       </AppLayout>
       {/* 桌面端显示底部状态栏 */}
-      {!isMobile && <StatusBar onOpenSettings={handleOpenSettings} />}
+      {!isMobile && <StatusBar />}
       {/* 更新对话框 */}
       <UpdateDialog open={showUpdateDialog} onOpenChange={setShowUpdateDialog} />
       {/* Toast 位置：移动端底部居中，桌面端右上角 */}

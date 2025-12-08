@@ -359,6 +359,24 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
         {isMobile ? (
           // 移动端：卡片列表
           <div className="flex flex-col gap-3 p-4">
+            {/* 选择模式下显示全选行 */}
+            {isSelectMode && sortedRecords.length > 0 && (
+              <div className="flex items-center gap-2 rounded-lg border bg-muted/50 p-3">
+                <Checkbox
+                  checked={sortedRecords.every((r) => selectedRecordIds.has(r.id))}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      selectAllRecords()
+                    } else {
+                      clearSelection()
+                    }
+                  }}
+                />
+                <span className="text-sm text-muted-foreground">
+                  {t("common.selectAll")}
+                </span>
+              </div>
+            )}
             {sortedRecords.length === 0 ? (
               isLoading ? (
                 <div className="py-8 text-center">
@@ -379,6 +397,9 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
                     onDelete={() => handleDelete(record)}
                     disabled={isDeleting}
                     showProxy={supportsProxy}
+                    isSelectMode={isSelectMode}
+                    isSelected={selectedRecordIds.has(record.id)}
+                    onToggleSelect={() => toggleRecordSelection(record.id)}
                   />
                 ))}
                 {/* 无限滚动触发元素 */}

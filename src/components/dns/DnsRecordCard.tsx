@@ -1,12 +1,14 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
 import type { DnsRecord } from "@/types"
 import { MoreHorizontal, Pencil, Shield, ShieldOff, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -17,6 +19,12 @@ interface DnsRecordCardProps {
   onDelete: () => void
   disabled?: boolean
   showProxy?: boolean
+  /** 是否处于批量选择模式 */
+  isSelectMode?: boolean
+  /** 是否已选中 */
+  isSelected?: boolean
+  /** 切换选中状态 */
+  onToggleSelect?: () => void
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -44,14 +52,31 @@ export function DnsRecordCard({
   onDelete,
   disabled = false,
   showProxy = false,
+  isSelectMode = false,
+  isSelected = false,
+  onToggleSelect,
 }: DnsRecordCardProps) {
   const { t } = useTranslation()
 
   return (
-    <Card className="p-3">
-      {/* 第一行：type + name + actions */}
+    <Card
+      className={cn(
+        "p-3",
+        isSelectMode && "cursor-pointer",
+        isSelected && "ring-2 ring-primary"
+      )}
+      onClick={isSelectMode ? onToggleSelect : undefined}
+    >
+      {/* 第一行：checkbox + type + name + actions */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2">
+          {isSelectMode && (
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={onToggleSelect}
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
           <Badge variant="secondary" className={TYPE_COLORS[record.type] || ""}>
             {record.type}
           </Badge>
@@ -59,27 +84,29 @@ export function DnsRecordCard({
             {record.name === "@" ? <span className="text-muted-foreground">@</span> : record.name}
           </span>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={disabled}>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={onEdit} disabled={disabled}>
-              <Pencil className="mr-2 h-4 w-4" />
-              {t("common.edit")}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={onDelete}
-              disabled={disabled}
-              className="text-destructive focus:text-destructive"
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              {t("common.delete")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {!isSelectMode && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={disabled}>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={onEdit} disabled={disabled}>
+                <Pencil className="mr-2 h-4 w-4" />
+                {t("common.edit")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={onDelete}
+                disabled={disabled}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {t("common.delete")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       {/* 第二行：value */}

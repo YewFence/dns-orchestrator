@@ -1,15 +1,11 @@
 import { cn } from "@/lib/utils"
 import { useUpdaterStore } from "@/stores/updaterStore"
-import { Check, Download, Loader2, RefreshCw, Settings } from "lucide-react"
+import { Check, Download, Loader2, RefreshCw } from "lucide-react"
 import { useTranslation } from "react-i18next"
-
-interface StatusBarProps {
-  onOpenSettings: () => void
-}
 
 type StatusType = "idle" | "checking" | "available" | "downloading" | "retrying" | "installing"
 
-export function StatusBar({ onOpenSettings }: StatusBarProps) {
+export function StatusBar() {
   const { t } = useTranslation()
   const {
     checking,
@@ -123,22 +119,8 @@ export function StatusBar({ onOpenSettings }: StatusBarProps) {
           </div>
         )}
 
-        {/* 右侧设置按钮（始终可用） */}
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          className={cn(
-            "-mr-2 flex h-full items-center gap-1.5 rounded px-2 transition-colors",
-            statusType === "retrying"
-              ? "hover:bg-yellow-500/30"
-              : statusType === "available"
-                ? "hover:bg-primary/20"
-                : "hover:bg-muted-foreground/10"
-          )}
-        >
-          <span className="tabular-nums">v{__APP_VERSION__}</span>
-          <Settings className="h-3.5 w-3.5" />
-        </button>
+        {/* 右侧版本号 */}
+        <span className="tabular-nums text-muted-foreground">v{__APP_VERSION__}</span>
       </div>
     </footer>
   )

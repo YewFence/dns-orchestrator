@@ -1,6 +1,7 @@
 "use client"
 
 import * as SheetPrimitive from "@radix-ui/react-dialog"
+import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
 import { type VariantProps, cva } from "class-variance-authority"
 import { X } from "lucide-react"
 import * as React from "react"
@@ -62,6 +63,13 @@ const SheetContent = React.forwardRef<
   <SheetPortal>
     <SheetOverlay />
     <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
+      {/* Accessible hidden title and description */}
+      <VisuallyHidden.Root asChild>
+        <SheetPrimitive.Title>Navigation</SheetPrimitive.Title>
+      </VisuallyHidden.Root>
+      <VisuallyHidden.Root asChild>
+        <SheetPrimitive.Description>Navigation menu</SheetPrimitive.Description>
+      </VisuallyHidden.Root>
       {children}
       {!hideClose && (
         <SheetPrimitive.Close

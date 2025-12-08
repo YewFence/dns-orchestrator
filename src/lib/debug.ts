@@ -4,6 +4,9 @@ import { useSettingsStore } from "@/stores/settingsStore"
 const originalError = console.error
 
 export function initDebugMode() {
+  // 生产环境不初始化调试模式
+  if (!import.meta.env.DEV) return
+
   console.error = (...args: unknown[]) => {
     // 始终保留原始控制台输出
     originalError(...args)

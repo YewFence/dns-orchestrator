@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   Check,
   Download,
+  Github,
   Languages,
   Monitor,
   Moon,
@@ -198,22 +199,24 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
             </div>
           </div>
 
-          {/* 调试模式设置 */}
-          <div className="space-y-3 sm:space-y-5">
-            <div>
-              <h3 className="mb-1 font-semibold text-lg">{t("settings.debug")}</h3>
-              <p className="text-muted-foreground text-sm">{t("settings.debugDesc")}</p>
-            </div>
-            <div className="flex items-center justify-between rounded-xl border bg-card p-4 sm:p-5">
-              <div className="space-y-1.5">
-                <Label htmlFor="debug-mode" className="font-medium text-sm">
-                  {t("settings.debugMode")}
-                </Label>
-                <p className="text-muted-foreground text-xs">{t("settings.debugModeDesc")}</p>
+          {/* 调试模式设置 - 仅开发环境显示 */}
+          {import.meta.env.DEV && (
+            <div className="space-y-3 sm:space-y-5">
+              <div>
+                <h3 className="mb-1 font-semibold text-lg">{t("settings.debug")}</h3>
+                <p className="text-muted-foreground text-sm">{t("settings.debugDesc")}</p>
               </div>
-              <Switch id="debug-mode" checked={debugMode} onCheckedChange={setDebugMode} />
+              <div className="flex items-center justify-between rounded-xl border bg-card p-4 sm:p-5">
+                <div className="space-y-1.5">
+                  <Label htmlFor="debug-mode" className="font-medium text-sm">
+                    {t("settings.debugMode")}
+                  </Label>
+                  <p className="text-muted-foreground text-xs">{t("settings.debugModeDesc")}</p>
+                </div>
+                <Switch id="debug-mode" checked={debugMode} onCheckedChange={setDebugMode} />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* 关于 */}
           <div className="space-y-3 sm:space-y-5">
@@ -229,6 +232,13 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
                     {t("settings.version")} {__APP_VERSION__}
                   </p>
                 </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => openUrl("https://github.com/AptS-1547/dns-orchestrator")}
+                >
+                  <Github className="h-4 w-4" />
+                </Button>
               </div>
 
               {/* 检查更新 */}

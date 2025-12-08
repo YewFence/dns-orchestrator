@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { cn } from "@/lib/utils"
 import { ArrowLeft, FileText, Globe, Lock, MapPin, Wrench } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { DnsLookup } from "./DnsLookup"
 import { IpLookup } from "./IpLookup"
@@ -13,9 +14,34 @@ interface ToolboxPageProps {
   onBack: () => void
 }
 
+const TABS = [
+  { id: "dns", icon: Globe, label: "DNS" },
+  { id: "whois", icon: FileText, label: "WHOIS" },
+  { id: "ssl", icon: Lock, label: "SSL" },
+  { id: "ip", icon: MapPin, label: "IP" },
+] as const
+
 export function ToolboxPage({ onBack }: ToolboxPageProps) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState("dns")
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 })
+  const tabsRef = useRef<Map<string, HTMLButtonElement>>(new Map())
+
+  // 更新指示器位置
+  useEffect(() => {
+    const activeElement = tabsRef.current.get(activeTab)
+    if (activeElement) {
+      const parent = activeElement.parentElement
+      if (parent) {
+        const parentRect = parent.getBoundingClientRect()
+        const activeRect = activeElement.getBoundingClientRect()
+        setIndicatorStyle({
+          left: activeRect.left - parentRect.left,
+          width: activeRect.width,
+        })
+      }
+    }
+  }, [activeTab])
 
   return (
     <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
@@ -33,50 +59,47 @@ export function ToolboxPage({ onBack }: ToolboxPageProps) {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-1 flex-col min-h-0">
         <div className="overflow-x-auto border-b px-4 sm:px-6">
-          <TabsList className="h-auto flex-nowrap gap-1 bg-transparent p-0">
-            <TabsTrigger
-              value="dns"
-              className="gap-1.5 rounded-none border-b-2 border-transparent px-3 py-2.5 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-            >
-              <Globe className="h-4 w-4" />
-              DNS
-            </TabsTrigger>
-            <TabsTrigger
-              value="whois"
-              className="gap-1.5 rounded-none border-b-2 border-transparent px-3 py-2.5 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-            >
-              <FileText className="h-4 w-4" />
-              WHOIS
-            </TabsTrigger>
-            <TabsTrigger
-              value="ssl"
-              className="gap-1.5 rounded-none border-b-2 border-transparent px-3 py-2.5 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-            >
-              <Lock className="h-4 w-4" />
-              SSL
-            </TabsTrigger>
-            <TabsTrigger
-              value="ip"
-              className="gap-1.5 rounded-none border-b-2 border-transparent px-3 py-2.5 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-            >
-              <MapPin className="h-4 w-4" />
-              IP
-            </TabsTrigger>
+          <TabsList className="relative h-auto flex-nowrap gap-1 bg-transparent p-0">
+            {/* 滑动指示器 */}
+            <div
+              className="absolute bottom-0 h-0.5 bg-primary transition-all duration-300 ease-out"
+              style={{
+                left: indicatorStyle.left,
+                width: indicatorStyle.width,
+              }}
+            />
+            {TABS.map(({ id, icon: Icon, label }) => (
+              <TabsTrigger
+                key={id}
+                ref={(el) => {
+                  if (el) tabsRef.current.set(id, el)
+                }}
+                value={id}
+                className={cn(
+                  "gap-1.5 rounded-none border-b-2 border-transparent px-3 py-2.5",
+                  "transition-colors duration-200",
+                  "data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </div>
 
         <ScrollArea className="flex-1 min-h-0">
           <div className="mx-auto max-w-4xl p-4 sm:p-6">
-            <TabsContent value="dns" className="mt-0">
+            <TabsContent value="dns" className="mt-0 animate-in fade-in-0 duration-200">
               <DnsLookup />
             </TabsContent>
-            <TabsContent value="whois" className="mt-0">
+            <TabsContent value="whois" className="mt-0 animate-in fade-in-0 duration-200">
               <WhoisLookup />
             </TabsContent>
-            <TabsContent value="ssl" className="mt-0">
+            <TabsContent value="ssl" className="mt-0 animate-in fade-in-0 duration-200">
               <SslCheck />
             </TabsContent>
-            <TabsContent value="ip" className="mt-0">
+            <TabsContent value="ip" className="mt-0 animate-in fade-in-0 duration-200">
               <IpLookup />
             </TabsContent>
           </div>

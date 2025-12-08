@@ -8,6 +8,8 @@ export default {
     save: "Save",
     confirm: "Confirm",
     loading: "Loading...",
+    loadMore: "Load more",
+    close: "Close",
     noData: "No data",
     total: "Total",
     records: "records",
@@ -33,7 +35,7 @@ export default {
     accountNamePlaceholder: "e.g., {{provider}} Main Account",
     provider: "DNS Provider",
     selectProvider: "Select Provider",
-    noAccounts: "No accounts, click + to add",
+    noAccounts: "No accounts",
     deleteConfirm: "Delete Account?",
     deleteConfirmDesc:
       'Are you sure you want to delete account "{{name}}"? This action cannot be undone.',
@@ -45,6 +47,13 @@ export default {
     createFailed: "Failed to create account",
     deleteSuccess: "Account deleted",
     deleteFailed: "Failed to delete account",
+  },
+  accounts: {
+    title: "Account Management",
+    manage: "Manage Accounts",
+    total: "{{count}} account(s)",
+    empty: "No accounts",
+    emptyDesc: "Add a DNS provider account to start managing your domains",
   },
   export: {
     title: "Export Accounts",
