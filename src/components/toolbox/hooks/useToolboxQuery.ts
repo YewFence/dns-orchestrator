@@ -36,7 +36,6 @@ export function useToolboxQuery<TParams extends Record<string, unknown>, TResult
   options: UseToolboxQueryOptions<TParams>
 ): UseToolboxQueryReturn<TParams, TResult> {
   const { commandName, historyType, getHistoryQuery, getHistoryExtra } = options
-  const { t } = useTranslation()
   const { addHistory } = useToolboxStore()
 
   const [isLoading, setIsLoading] = useState(false)
@@ -70,7 +69,7 @@ export function useToolboxQuery<TParams extends Record<string, unknown>, TResult
         setIsLoading(false)
       }
     },
-    [commandName, historyType, getHistoryQuery, getHistoryExtra, addHistory, t]
+    [commandName, historyType, getHistoryQuery, getHistoryExtra, addHistory]
   )
 
   const reset = useCallback(() => {

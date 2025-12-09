@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { STORAGE_KEYS } from "@/constants"
 import { changeLanguage, type LanguageCode, supportedLanguages } from "@/i18n"
 
 type Theme = "light" | "dark" | "system"
@@ -20,19 +21,22 @@ interface SettingsState {
   theme: Theme
   language: LanguageCode
   debugMode: boolean
+  sidebarCollapsed: boolean
   setTheme: (theme: Theme) => void
   setLanguage: (lang: LanguageCode) => void
   setDebugMode: (enabled: boolean) => void
+  setSidebarCollapsed: (collapsed: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
-  theme: (localStorage.getItem("theme") as Theme) || "system",
+  theme: (localStorage.getItem(STORAGE_KEYS.THEME) as Theme) || "system",
   language: getInitialLanguage(),
   debugMode: localStorage.getItem("debugMode") === "true",
+  sidebarCollapsed: localStorage.getItem(STORAGE_KEYS.SIDEBAR_COLLAPSED) === "true",
 
   setTheme: (theme) => {
     set({ theme })
-    localStorage.setItem("theme", theme)
+    localStorage.setItem(STORAGE_KEYS.THEME, theme)
 
     // 应用主题
     const root = document.documentElement
@@ -55,11 +59,16 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     set({ debugMode: enabled })
     localStorage.setItem("debugMode", String(enabled))
   },
+
+  setSidebarCollapsed: (collapsed) => {
+    set({ sidebarCollapsed: collapsed })
+    localStorage.setItem(STORAGE_KEYS.SIDEBAR_COLLAPSED, String(collapsed))
+  },
 }))
 
 // 初始化主题
 export function initTheme() {
-  const theme = (localStorage.getItem("theme") as Theme) || "system"
+  const theme = (localStorage.getItem(STORAGE_KEYS.THEME) as Theme) || "system"
 
   // 同步更新 store 状态（确保 store 与 localStorage 一致）
   useSettingsStore.setState({ theme })

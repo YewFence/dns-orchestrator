@@ -1,60 +1,36 @@
 import { Globe, Menu } from "lucide-react"
 import type { ReactNode } from "react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
-import { MainContent } from "./MainContent"
+import { useSettingsStore } from "@/stores"
 import { Sidebar } from "./Sidebar"
+
+type NavItem = "main" | "domains" | "toolbox" | "settings" | "accounts"
 
 interface AppLayoutProps {
   children?: ReactNode
-  onOpenToolbox?: () => void
-  onNavigateToMain?: () => void
-  onOpenSettings?: () => void
-  onOpenAccounts?: () => void
+  currentView: NavItem
+  onNavigate: (view: NavItem) => void
   /** 是否隐藏移动端 header（子页面自己负责显示） */
   hideHeader?: boolean
 }
 
-// 检测是否在 md-lg 之间（768px - 1024px）
-function useIsCollapsedRange() {
-  const [isCollapsed, setIsCollapsed] = useState(false)
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(min-width: 768px) and (max-width: 1023px)")
-    const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
-      setIsCollapsed(e.matches)
-    }
-    handleChange(mediaQuery)
-    mediaQuery.addEventListener("change", handleChange)
-    return () => mediaQuery.removeEventListener("change", handleChange)
-  }, [])
-
-  return isCollapsed
-}
-
 export function AppLayout({
   children,
-  onOpenToolbox,
-  onNavigateToMain,
-  onOpenSettings,
-  onOpenAccounts,
+  currentView,
+  onNavigate,
   hideHeader = false,
 }: AppLayoutProps) {
   const { t } = useTranslation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const isCollapsedRange = useIsCollapsedRange()
-  // Hover 状态
-  const [hovered, setHovered] = useState(false)
-
-  // 折叠状态：在折叠范围内且未 hover
-  const collapsed = isCollapsedRange && !hovered
+  const { sidebarCollapsed } = useSettingsStore()
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background md:flex-row md:pb-6">
-      {/* 移动端顶部导航 - 根据 hideHeader 控制，子页面时隐藏 */}
+      {/* 移动端顶部导航 */}
       {!hideHeader && (
         <header className="flex items-center gap-2 border-b px-4 py-3 md:hidden">
           <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
@@ -65,21 +41,10 @@ export function AppLayout({
             </SheetTrigger>
             <SheetContent side="left" className="w-72 p-0" hideClose>
               <Sidebar
-                onOpenToolbox={() => {
+                currentView={currentView}
+                onNavigate={(view) => {
                   setSidebarOpen(false)
-                  onOpenToolbox?.()
-                }}
-                onNavigateToMain={() => {
-                  setSidebarOpen(false)
-                  onNavigateToMain?.()
-                }}
-                onOpenSettings={() => {
-                  setSidebarOpen(false)
-                  onOpenSettings?.()
-                }}
-                onOpenAccounts={() => {
-                  setSidebarOpen(false)
-                  onOpenAccounts?.()
+                  onNavigate(view)
                 }}
                 onClose={() => setSidebarOpen(false)}
                 isMobile
@@ -91,39 +56,13 @@ export function AppLayout({
         </header>
       )}
 
-      {/* 桌面端侧边栏 - 仅桌面端显示 */}
-      <div className="relative hidden h-full md:block">
-        {/* 折叠时的占位容器 */}
-        <div className={cn("h-full", isCollapsedRange ? "w-16" : "w-64")} />
-
-        {/* 实际 Sidebar - 折叠范围内使用 absolute 定位实现浮层 */}
-        <div
-          role="navigation"
-          className={cn(
-            "h-full",
-            isCollapsedRange ? "absolute inset-y-0 left-0 z-50" : "absolute inset-y-0 left-0"
-          )}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-        >
-          <Sidebar
-            onOpenToolbox={onOpenToolbox}
-            onNavigateToMain={onNavigateToMain}
-            onOpenSettings={onOpenSettings}
-            onOpenAccounts={onOpenAccounts}
-            collapsed={collapsed}
-          />
-          {/* 展开时的阴影 */}
-          {isCollapsedRange && hovered && (
-            <div className="-mr-4 pointer-events-none absolute inset-y-0 right-0 w-4 bg-gradient-to-r from-black/10 to-transparent" />
-          )}
-        </div>
+      {/* 桌面端侧边栏 */}
+      <div className={cn("hidden h-full shrink-0 md:block", sidebarCollapsed ? "w-16" : "w-56")}>
+        <Sidebar currentView={currentView} onNavigate={onNavigate} />
       </div>
 
-      {/* 主内容区 - 始终渲染，不会被卸载 */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {children || <MainContent />}
-      </div>
+      {/* 主内容区 */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
     </div>
   )
 }

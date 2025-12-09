@@ -166,6 +166,31 @@ export default {
     // Toast messages
     fetchFailed: "Failed to fetch domains",
   },
+  domains: {
+    selectTitle: "Select Domain",
+    searchPlaceholder: "Search domains...",
+    switch: "Switch",
+    refresh: "Refresh domain list",
+  },
+  nav: {
+    home: "Home",
+    domains: "Domains",
+    collapse: "Collapse sidebar",
+    expand: "Expand sidebar",
+  },
+  home: {
+    welcome: "Welcome to DNS Orchestrator",
+    welcomeDesc: "Manage your DNS records with ease",
+    totalAccounts: "Total Accounts",
+    recentDomains: "Recent Domains",
+    recentDomainsDesc: "Quickly access recently visited domains",
+    quickActions: "Quick Actions",
+    quickActionsDesc: "Common feature shortcuts",
+    manageDomains: "Manage DNS records",
+    useTools: "DNS/WHOIS/SSL lookup tools",
+    manageAccounts: "Add or manage accounts",
+    configureSettings: "Theme, language settings",
+  },
   settings: {
     title: "Settings",
     // Appearance

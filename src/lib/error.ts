@@ -5,15 +5,16 @@ import type { ApiError, DnsErrorCode, ProviderErrorDetails } from "@/types"
  * 将 PascalCase 转换为 snake_case
  */
 function toSnakeCase(str: string): string {
-  return str.replace(/([A-Z])/g, "_$1").toLowerCase().replace(/^_/, "")
+  return str
+    .replace(/([A-Z])/g, "_$1")
+    .toLowerCase()
+    .replace(/^_/, "")
 }
 
 /**
  * 检查是否为 ProviderError
  */
-function isProviderError(
-  error: ApiError
-): error is ApiError & { details: ProviderErrorDetails } {
+function isProviderError(error: ApiError): error is ApiError & { details: ProviderErrorDetails } {
   return (
     error.code === "Provider" &&
     typeof error.details === "object" &&
@@ -40,10 +41,7 @@ function getProviderErrorMessage(details: ProviderErrorDetails): string {
   const params: Record<string, unknown> = { ...details }
 
   // Fallback 链
-  const keys = [
-    `errors.provider.${provider}.${errorCode}`,
-    `errors.provider.common.${errorCode}`,
-  ]
+  const keys = [`errors.provider.${provider}.${errorCode}`, `errors.provider.common.${errorCode}`]
 
   for (const key of keys) {
     if (i18n.exists(key)) {
@@ -107,7 +105,10 @@ export function getErrorMessage(error: ApiError | undefined): string {
 
   // 处理 ProviderError
   if (isProviderError(error)) {
-    console.log("[getErrorMessage] isProviderError: true, details:", JSON.stringify(error.details, null, 2))
+    console.log(
+      "[getErrorMessage] isProviderError: true, details:",
+      JSON.stringify(error.details, null, 2)
+    )
     return getProviderErrorMessage(error.details)
   }
 

@@ -5,6 +5,7 @@ import { extractErrorMessage, getErrorMessage } from "@/lib/error"
 import { invoke } from "@/lib/tauri"
 import type { Account, CreateAccountRequest } from "@/types"
 import type { ProviderInfo } from "@/types/provider"
+import { useDomainStore } from "./domainStore"
 
 interface AccountState {
   accounts: Account[]
@@ -112,6 +113,8 @@ export const useAccountStore = create<AccountState>((set) => ({
           accounts: state.accounts.filter((a) => a.id !== id),
           selectedAccountId: state.selectedAccountId === id ? null : state.selectedAccountId,
         }))
+        // 清理域名缓存
+        useDomainStore.getState().clearAccountCache(id)
         toast.success("账号已删除")
         return true
       }

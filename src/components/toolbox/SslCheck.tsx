@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Input } from "@/components/ui/input"
+import { NETWORK } from "@/constants"
 import type { SslCheckResult } from "@/types"
 import { HistoryChips } from "./HistoryChips"
 import { useToolboxQuery } from "./hooks/useToolboxQuery"
@@ -111,7 +112,10 @@ export function SslCheck() {
     }
 
     const portNum = port.trim() ? Number.parseInt(port.trim(), 10) : undefined
-    if (port.trim() && (Number.isNaN(portNum) || portNum! < 1 || portNum! > 65535)) {
+    if (
+      port.trim() &&
+      (Number.isNaN(portNum) || portNum! < NETWORK.MIN_PORT || portNum! > NETWORK.MAX_PORT)
+    ) {
       toast.error(t("toolbox.ssl.invalidPort"))
       return
     }

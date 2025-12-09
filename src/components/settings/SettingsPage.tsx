@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
+import { EXTERNAL_LINKS } from "@/constants"
 import { type LanguageCode, supportedLanguages } from "@/i18n"
 import { ENV } from "@/lib/env"
 import { cn } from "@/lib/utils"
@@ -74,7 +75,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
                 label: "GitHub Releases",
                 onClick: async () => {
                   try {
-                    await openUrl("https://github.com/AptS-1547/dns-orchestrator/releases/latest")
+                    await openUrl(EXTERNAL_LINKS.GITHUB_RELEASES)
                   } catch (err) {
                     console.error("Failed to open URL:", err)
                   }
@@ -236,7 +237,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => openUrl("https://github.com/AptS-1547/dns-orchestrator")}
+                  onClick={() => openUrl(EXTERNAL_LINKS.GITHUB_REPO)}
                 >
                   <Github className="h-4 w-4" />
                 </Button>

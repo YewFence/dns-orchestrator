@@ -72,10 +72,7 @@ export type ProviderErrorDetails =
 /** API 错误（匹配后端 DnsError 序列化格式） */
 export interface ApiError {
   code: DnsErrorCode
-  details?:
-    | string
-    | { provider: string; message: string }
-    | ProviderErrorDetails
+  details?: string | { provider: string; message: string } | ProviderErrorDetails
 }
 
 /** 分页参数 */

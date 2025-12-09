@@ -162,6 +162,31 @@ export default {
     // Toast messages
     fetchFailed: "获取域名列表失败",
   },
+  domains: {
+    selectTitle: "选择域名",
+    searchPlaceholder: "搜索域名...",
+    switch: "切换",
+    refresh: "刷新域名列表",
+  },
+  nav: {
+    home: "主页",
+    domains: "域名",
+    collapse: "收起侧边栏",
+    expand: "展开侧边栏",
+  },
+  home: {
+    welcome: "欢迎使用 DNS Orchestrator",
+    welcomeDesc: "管理你的 DNS 记录，一切尽在掌控",
+    totalAccounts: "账户总数",
+    recentDomains: "最近访问",
+    recentDomainsDesc: "快速访问最近操作的域名",
+    quickActions: "快捷操作",
+    quickActionsDesc: "常用功能入口",
+    manageDomains: "管理 DNS 记录",
+    useTools: "DNS/WHOIS/SSL 查询工具",
+    manageAccounts: "添加或管理账户",
+    configureSettings: "主题、语言等设置",
+  },
   settings: {
     title: "设置",
     // Appearance
@@ -357,11 +382,11 @@ export default {
       common: {
         network_error: "网络请求失败: {{detail}}",
         invalid_credentials: "凭证无效或已过期",
-        record_exists: "记录 \"{{record_name}}\" 已存在",
+        record_exists: '记录 "{{record_name}}" 已存在',
         record_not_found: "记录不存在",
-        invalid_parameter: "参数 \"{{param}}\" 无效: {{detail}}",
+        invalid_parameter: '参数 "{{param}}" 无效: {{detail}}',
         quota_exceeded: "配额已用尽",
-        domain_not_found: "域名 \"{{domain}}\" 不存在",
+        domain_not_found: '域名 "{{domain}}" 不存在',
         parse_error: "响应解析失败: {{detail}}",
         unknown: "未知错误",
       },

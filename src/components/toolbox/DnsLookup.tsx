@@ -19,21 +19,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { DNS_SERVERS } from "@/constants"
 import type { DnsLookupResult, DnsLookupType } from "@/types"
 import { DNS_RECORD_TYPES } from "@/types"
 import { HistoryChips } from "./HistoryChips"
 import { useToolboxQuery } from "./hooks/useToolboxQuery"
 import { CopyableText, ToolCard } from "./shared"
-
-// DNS 服务器选项
-const DNS_SERVERS = [
-  { label: "toolbox.systemDefault", value: "system", isRaw: false },
-  { label: "Google (8.8.8.8)", value: "8.8.8.8", isRaw: true },
-  { label: "Cloudflare (1.1.1.1)", value: "1.1.1.1", isRaw: true },
-  { label: "AliDNS (223.5.5.5)", value: "223.5.5.5", isRaw: true },
-  { label: "Tencent (119.29.29.29)", value: "119.29.29.29", isRaw: true },
-  { label: "toolbox.custom", value: "custom", isRaw: false },
-] as const
 
 export function DnsLookup() {
   const { t } = useTranslation()
