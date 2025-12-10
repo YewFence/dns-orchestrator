@@ -9,7 +9,7 @@
 - [项目结构](#项目结构)
 - [开发工作流](#开发工作流)
 - [添加新的 DNS 服务商](#添加新的-dns-服务商)
-- [构建与发布](#构建与发布)
+- [多平台构建](#多平台构建)
 - [测试](#测试)
 - [常见问题](#常见问题)
 
@@ -47,7 +47,18 @@ sudo apt-get install -y \
   wget
 ```
 
-其他发行版请参阅 [Tauri 前置要求](https://tauri.app/v2/guides/prerequisites/)。
+#### Android 开发
+```bash
+# 通过 Android Studio 或命令行安装 Android SDK 和 NDK
+# 设置环境变量
+export ANDROID_HOME=$HOME/Android/Sdk
+export NDK_HOME=$ANDROID_HOME/ndk/<version>
+
+# 初始化 Tauri Android
+pnpm tauri android init
+```
+
+其他发行版请参阅 [Tauri 前置要求](https://v2.tauri.app/start/prerequisites/)。
 
 ## 快速开始
 
@@ -70,8 +81,14 @@ pnpm install
 ### 启动开发服务器
 
 ```bash
-# 以开发模式启动 Tauri，支持热重载
+# 桌面端：以开发模式启动 Tauri，支持热重载
 pnpm tauri dev
+
+# Android：启动 Android 开发模式
+pnpm tauri android dev
+
+# Web 模式：启动前端 HTTP 传输模式（需要 actix-web 后端）
+pnpm dev:web
 ```
 
 这将会：
@@ -82,8 +99,14 @@ pnpm tauri dev
 ### 生产构建
 
 ```bash
-# 构建优化的生产版本
+# 桌面端构建
 pnpm tauri build
+
+# Android 构建
+pnpm tauri android build
+
+# Web 前端构建
+pnpm build:web
 ```
 
 构建产物位于 `src-tauri/target/release/bundle/`。
@@ -92,93 +115,112 @@ pnpm tauri build
 
 ```
 dns-orchestrator/
-├── src/                          # 前端 (React + TypeScript)
-│   ├── components/               # React 组件
-│   │   ├── account/              # 账号管理 UI
-│   │   ├── dns/                  # DNS 记录管理
-│   │   ├── domain/               # 域名管理
-│   │   ├── toolbox/              # 网络工具箱 (DNS/WHOIS)
-│   │   ├── settings/             # 设置页面
-│   │   └── ui/                   # 可复用 UI 组件
-│   ├── stores/                   # Zustand 状态管理
-│   │   ├── accountStore.ts       # 账号状态
-│   │   ├── dnsStore.ts           # DNS 记录状态
-│   │   ├── domainStore.ts        # 域名状态
-│   │   ├── toolboxStore.ts       # 工具箱状态
-│   │   └── settingsStore.ts      # 应用设置
-│   ├── types/                    # TypeScript 类型定义
-│   │   ├── account.ts
-│   │   ├── dns.ts
-│   │   ├── domain.ts
-│   │   ├── provider.ts
-│   │   └── toolbox.ts
-│   ├── i18n/                     # 国际化
-│   │   ├── index.ts
-│   │   └── locales/
-│   │       ├── en-US.ts          # 英文翻译
-│   │       └── zh-CN.ts          # 中文翻译
-│   ├── App.tsx                   # 根组件
-│   ├── main.tsx                  # React 入口
-│   └── index.css                 # 全局样式
+├── src/                              # 前端 (React + TypeScript)
+│   ├── components/                   # 按功能组织的 React 组件
+│   │   ├── account/                  # 账号管理 UI
+│   │   ├── dns/                      # DNS 记录管理
+│   │   ├── domain/                   # 域名管理
+│   │   ├── domains/                  # 域名选择页面
+│   │   ├── home/                     # 首页仪表盘
+│   │   ├── toolbox/                  # 网络工具箱
+│   │   ├── settings/                 # 设置页面
+│   │   ├── layout/                   # 布局组件
+│   │   ├── navigation/               # 导航组件
+│   │   ├── error/                    # 错误边界
+│   │   └── ui/                       # 可复用 UI 组件
+│   ├── services/                     # 服务层
+│   │   ├── transport/                # 传输抽象
+│   │   │   ├── types.ts              # ITransport、CommandMap
+│   │   │   ├── tauri.transport.ts    # Tauri IPC 实现
+│   │   │   └── http.transport.ts     # HTTP REST 实现
+│   │   ├── account.service.ts
+│   │   ├── dns.service.ts
+│   │   ├── domain.service.ts
+│   │   └── toolbox.service.ts
+│   ├── stores/                       # Zustand 状态管理
+│   ├── types/                        # TypeScript 类型定义
+│   ├── i18n/                         # 国际化
+│   ├── lib/                          # 工具函数
+│   ├── constants/                    # 应用常量
+│   └── hooks/                        # 自定义 React Hooks
 │
-├── src-tauri/                    # 后端 (Rust + Tauri)
+├── dns-orchestrator-provider/        # 独立 Provider 库
 │   ├── src/
-│   │   ├── commands/             # Tauri 命令处理器
-│   │   │   ├── account.rs        # 账号管理命令
-│   │   │   ├── dns.rs            # DNS 操作
-│   │   │   ├── domain.rs         # 域名操作
-│   │   │   └── toolbox.rs        # 网络工具箱命令
-│   │   ├── providers/            # DNS 服务商实现
-│   │   │   ├── mod.rs            # Provider trait 和注册表
-│   │   │   ├── cloudflare.rs
-│   │   │   ├── aliyun.rs
-│   │   │   ├── dnspod.rs
-│   │   │   └── huaweicloud.rs
-│   │   ├── credentials/          # 安全凭证存储
-│   │   │   ├── mod.rs
-│   │   │   └── keychain.rs       # 系统钥匙串集成
-│   │   ├── storage/              # 本地数据持久化
-│   │   │   ├── mod.rs
-│   │   │   └── account_store.rs
-│   │   ├── crypto.rs             # 加密工具
-│   │   ├── error.rs              # 错误类型和处理
-│   │   ├── types.rs              # Rust 类型定义
-│   │   ├── lib.rs                # Tauri 库入口
-│   │   └── main.rs               # 应用入口
-│   ├── Cargo.toml                # Rust 依赖
-│   ├── tauri.conf.json           # Tauri 配置
-│   └── build.rs                  # 构建脚本
+│   │   ├── lib.rs                    # 库入口，re-exports
+│   │   ├── traits.rs                 # DnsProvider trait
+│   │   ├── types.rs                  # Domain、DnsRecord 等类型
+│   │   ├── error.rs                  # ProviderError 枚举
+│   │   ├── factory.rs                # create_provider()、元数据
+│   │   └── providers/                # Provider 实现
+│   │       ├── mod.rs
+│   │       ├── cloudflare.rs
+│   │       ├── aliyun.rs
+│   │       ├── dnspod.rs
+│   │       └── huaweicloud.rs
+│   └── Cargo.toml
 │
-├── .github/
-│   └── workflows/
-│       └── release.yml           # GitHub Actions 发布工作流
-├── package.json                  # 前端依赖和脚本
-├── vite.config.ts                # Vite 配置
-├── tsconfig.json                 # TypeScript 配置
-└── README.md
+├── src-tauri/                        # Tauri 后端 (桌面/移动)
+│   ├── src/
+│   │   ├── commands/                 # Tauri 命令处理器
+│   │   │   ├── mod.rs
+│   │   │   ├── account.rs
+│   │   │   ├── dns.rs
+│   │   │   ├── domain.rs
+│   │   │   ├── toolbox.rs
+│   │   │   └── updater.rs
+│   │   ├── providers/                # Provider 注册表
+│   │   │   └── mod.rs                # ProviderRegistry + re-exports
+│   │   ├── credentials/              # 凭证存储
+│   │   │   ├── mod.rs
+│   │   │   ├── keychain.rs           # 桌面端钥匙串
+│   │   │   └── android.rs            # Android Stronghold
+│   │   ├── storage/                  # 本地数据持久化
+│   │   ├── crypto.rs                 # 加密工具
+│   │   ├── error.rs                  # 错误类型
+│   │   ├── types.rs                  # Rust 类型定义
+│   │   ├── lib.rs                    # Tauri 库入口
+│   │   └── main.rs                   # 应用入口
+│   ├── tauri-plugin-apk-installer/   # Android APK 安装插件
+│   ├── Cargo.toml
+│   └── tauri.conf.json
+│
+├── src-actix-web/                    # Web 后端 (开发中)
+│   ├── src/main.rs                   # Actix-web 服务入口
+│   ├── migration/                    # SeaORM 数据库迁移
+│   └── Cargo.toml
+│
+├── scripts/
+│   └── sync-version.mjs              # 版本同步脚本
+├── package.json
+├── vite.config.ts                    # 平台感知的 Vite 配置
+└── tsconfig.json
 ```
 
-### 关键组件
+### 关键架构组件
 
 #### 前端
-- **Components**: 按功能组织（account, dns, domain, toolbox）
+- **Services**: 通过 `ITransport` 接口抽象后端通信
+- **Transport**: 桌面/移动端使用 Tauri IPC，Web 使用 HTTP
 - **Stores**: Zustand stores 用于状态管理（每个功能域一个）
-- **Types**: 与 Rust 后端类型匹配的共享 TypeScript 接口
-- **i18n**: 英文和中文翻译文件
+- **Components**: 按功能组织
 
-#### 后端
-- **Commands**: Tauri 命令处理器，通过 `invoke()` 暴露给前端
-- **Providers**: 遵循 `DnsProvider` trait 的 DNS 服务商实现
-- **Credentials**: 系统钥匙串集成，用于安全存储
-- **Storage**: 基于 JSON 的本地账号元数据存储
+#### 后端 (Tauri)
+- **Commands**: Tauri 命令处理器，暴露给前端
+- **Providers**: 从 `dns-orchestrator-provider` re-export + `ProviderRegistry`
+- **Credentials**: 平台特定的安全存储
+
+#### Provider 库
+- **独立 crate**: 可在 Tauri 和 Web 后端复用
+- **Feature flags**: 按需启用 Provider 和 TLS 后端
+- **统一错误**: 所有 Provider 特定错误使用 `ProviderError`
 
 ## 开发工作流
 
 ### 热重载
 
-开发服务器支持热模块替换 (HMR)：
 - **前端更改**：即时重载，不丢失状态
 - **后端更改**：需要手动重启 `pnpm tauri dev`
+- **Provider 库更改**：需要重启
 
 ### 调试
 
@@ -188,93 +230,95 @@ dns-orchestrator/
 - **Windows**: `F12`
 
 #### 后端调试
-使用 `log` crate 添加日志：
-
-```rust
-use log::{info, warn, error};
-
-info!("这是一条信息");
-warn!("这是一个警告");
-error!("这是一个错误");
-```
-
-启用日志运行：
 ```bash
+# 启用调试日志
 RUST_LOG=debug pnpm tauri dev
+
+# 更详细的日志
+RUST_LOG=dns_orchestrator=trace pnpm tauri dev
 ```
 
 ### 版本同步
-
-项目使用自定义脚本保持版本同步：
 
 ```bash
 pnpm sync-version
 ```
 
-这将更新：
-- `package.json` → `version`
-- `src-tauri/tauri.conf.json` → `version`
-- `src-tauri/Cargo.toml` → `version`
+这将更新以下文件中的版本号：
+- `package.json`
+- `src-tauri/tauri.conf.json`
+- `src-tauri/Cargo.toml`
+- `src-actix-web/Cargo.toml`
 
 创建发布前务必运行此命令。
 
+### 代码质量
+
+```bash
+# 前端
+pnpm lint          # 运行 Biome linter
+pnpm format:fix    # 格式化代码
+
+# 后端
+pnpm lint:rust     # 运行 Clippy
+pnpm format:rust   # 格式化 Rust 代码
+
+# 所有检查
+pnpm check
+```
+
 ## 添加新的 DNS 服务商
 
-本节将指导您添加对新 DNS 服务商的支持。
+自 v1.1.0 起，Provider 实现在独立的 `dns-orchestrator-provider` 库中。
 
-### 步骤 1：创建服务商实现
+### 步骤 1：创建 Provider 实现
 
-在 `src-tauri/src/providers/your_provider.rs` 创建新文件：
+创建 `dns-orchestrator-provider/src/providers/your_provider.rs`：
 
 ```rust
 use async_trait::async_trait;
 use reqwest::Client;
-use std::collections::HashMap;
 
-use crate::error::{DnsError, Result};
-use crate::providers::DnsProvider;
+use crate::error::{ProviderError, Result};
+use crate::traits::DnsProvider;
 use crate::types::*;
 
 pub struct YourProvider {
     client: Client,
-    credentials: HashMap<String, String>,
+    api_key: String,
 }
 
 impl YourProvider {
-    pub fn new(credentials: HashMap<String, String>) -> Self {
-        Self {
+    pub fn new(credentials: ProviderCredentials) -> Result<Self> {
+        let ProviderCredentials::YourProvider { api_key } = credentials else {
+            return Err(ProviderError::InvalidCredentials {
+                provider: "your_provider".to_string(),
+            });
+        };
+
+        Ok(Self {
             client: Client::new(),
-            credentials,
-        }
+            api_key,
+        })
     }
 
-    fn get_credential(&self, key: &str) -> Result<String> {
-        self.credentials
-            .get(key)
-            .cloned()
-            .ok_or_else(|| DnsError::MissingCredential(key.to_string()))
+    fn provider_name() -> &'static str {
+        "your_provider"
     }
 }
 
 #[async_trait]
 impl DnsProvider for YourProvider {
-    fn id(&self) -> &'static str {
-        "your_provider"
-    }
-
-    async fn validate_credentials(&self) -> Result<bool> {
-        // 实现凭证验证
-        // 进行一个简单的 API 调用来验证凭证是否有效
+    async fn validate_credentials(&self) -> Result<()> {
+        // 进行一个简单的 API 调用来验证凭证
         todo!()
     }
 
     async fn list_domains(&self, params: &PaginationParams) -> Result<PaginatedResponse<Domain>> {
-        // 实现域名列表获取（带分页）
         todo!()
     }
 
     async fn get_domain(&self, domain_id: &str) -> Result<Domain> {
-        // 实现获取单个域名详情
         todo!()
     }
 
@@ -283,12 +327,10 @@ impl DnsProvider for YourProvider {
         domain_id: &str,
         params: &RecordQueryParams,
     ) -> Result<PaginatedResponse<DnsRecord>> {
-        // 实现 DNS 记录列表获取（带分页和过滤）
         todo!()
     }
 
     async fn create_record(&self, req: &CreateDnsRecordRequest) -> Result<DnsRecord> {
-        // 实现 DNS 记录创建
         todo!()
     }
 
@@ -297,90 +339,102 @@ impl DnsProvider for YourProvider {
         record_id: &str,
         req: &UpdateDnsRecordRequest,
     ) -> Result<DnsRecord> {
-        // 实现 DNS 记录更新
         todo!()
     }
 
     async fn delete_record(&self, record_id: &str, domain_id: &str) -> Result<()> {
-        // 实现 DNS 记录删除
         todo!()
     }
 }
 ```
 
-### 步骤 2：注册服务商
+### 步骤 2：添加 Feature Flag
 
-更新 `src-tauri/src/providers/mod.rs`：
+更新 `dns-orchestrator-provider/Cargo.toml`：
+
+```toml
+[features]
+your_provider = []
+all-providers = ["cloudflare", "aliyun", "dnspod", "huaweicloud", "your_provider"]
+```
+
+### 步骤 3：注册 Provider
+
+更新 `dns-orchestrator-provider/src/providers/mod.rs`：
 
 ```rust
+#[cfg(feature = "your_provider")]
 mod your_provider;
+#[cfg(feature = "your_provider")]
 pub use your_provider::YourProvider;
+```
 
-// 在 create_provider 函数中：
-pub fn create_provider(
-    provider_type: &str,
-    credentials: HashMap<String, String>,
-) -> Result<Arc<dyn DnsProvider>> {
-    match provider_type {
-        "cloudflare" => Ok(Arc::new(CloudflareProvider::new(credentials))),
-        "aliyun" => Ok(Arc::new(AliyunProvider::new(credentials))),
-        "dnspod" => Ok(Arc::new(DnspodProvider::new(credentials))),
-        "huaweicloud" => Ok(Arc::new(HuaweicloudProvider::new(credentials))),
-        "your_provider" => Ok(Arc::new(YourProvider::new(credentials))), // 添加这一行
-        _ => Err(DnsError::ProviderNotFound(provider_type.to_string())),
+更新 `dns-orchestrator-provider/src/factory.rs`：
+
+```rust
+pub fn create_provider(credentials: ProviderCredentials) -> Result<Arc<dyn DnsProvider>> {
+    match &credentials {
+        // ... 现有 providers
+        #[cfg(feature = "your_provider")]
+        ProviderCredentials::YourProvider { .. } => {
+            Ok(Arc::new(YourProvider::new(credentials)?))
+        }
     }
 }
-
-// 在 get_all_provider_metadata() 中添加服务商元数据：
-ProviderMetadata {
-    id: "your_provider".to_string(),
-    name: "你的服务商".to_string(),
-    description: "你的 DNS 服务商描述".to_string(),
-    required_fields: vec![
-        ProviderCredentialField {
-            key: "apiKey".to_string(),
-            label: "API Key".to_string(),
-            field_type: "password".to_string(),
-            placeholder: Some("输入 API Key".to_string()),
-            help_text: Some("从服务商控制台获取".to_string()),
-        }
-    ],
-    features: ProviderFeatures::default(),
-},
 ```
 
-### 步骤 3：添加前端类型
+### 步骤 4：添加凭证类型
 
-更新 `src/types/provider.ts`：
+更新 `dns-orchestrator-provider/src/types.rs`：
 
-```typescript
-export type ProviderType =
-  | 'cloudflare'
-  | 'aliyun'
-  | 'dnspod'
-  | 'huaweicloud'
-  | 'your_provider';  // 添加这一行
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ProviderCredentials {
+    // ... 现有变体
+    YourProvider { api_key: String },
+}
+
+// 添加到 ProviderType 枚举
+pub enum ProviderType {
+    // ...
+    YourProvider,
+}
 ```
 
-### 步骤 4：添加 UI 图标
+### 步骤 5：添加 Provider 元数据
 
-更新 `src/components/account/ProviderIcon.tsx`：
+更新 `dns-orchestrator-provider/src/factory.rs`：
 
-```tsx
-const providerIcons: Record<ProviderType, React.ReactNode> = {
-  // ... 现有服务商
-  your_provider: <YourProviderIcon className="w-5 h-5" />,
-};
+```rust
+pub fn get_all_provider_metadata() -> Vec<ProviderMetadata> {
+    vec![
+        // ... 现有 providers
+        #[cfg(feature = "your_provider")]
+        ProviderMetadata {
+            id: "your_provider".to_string(),
+            name: "你的服务商".to_string(),
+            description: "你的 DNS 服务商描述".to_string(),
+            required_fields: vec![
+                ProviderCredentialField {
+                    key: "api_key".to_string(),
+                    label: "API Key".to_string(),
+                    field_type: FieldType::Password,
+                    placeholder: Some("输入 API Key".to_string()),
+                    help_text: Some("从服务商控制台获取".to_string()),
+                },
+            ],
+            features: ProviderFeatures::default(),
+        },
+    ]
+}
 ```
 
-### 步骤 5：添加翻译
-
-更新翻译文件：
+### 步骤 6：添加前端翻译
 
 **`src/i18n/locales/en-US.ts`：**
 ```typescript
 providers: {
-  // ... 现有服务商
   your_provider: 'Your Provider',
 }
 ```
@@ -388,78 +442,85 @@ providers: {
 **`src/i18n/locales/zh-CN.ts`：**
 ```typescript
 providers: {
-  // ... 现有服务商
   your_provider: '你的服务商',
 }
 ```
 
-### 步骤 6：测试服务商
+### 步骤 7：添加 Provider 图标（可选）
 
-1. 启动开发服务器：`pnpm tauri dev`
-2. 使用新服务商添加账号
-3. 测试所有操作：列出域名、列出记录、创建/更新/删除记录
-4. 验证分页和搜索功能
+如果有自定义图标，更新 `src/components/account/ProviderIcon.tsx`。
 
-### 参考实现
-
-完整示例请参阅：
-- **简单服务商**：`src-tauri/src/providers/cloudflare.rs`
-- **复杂服务商**：`src-tauri/src/providers/aliyun.rs`
-
-## 构建与发布
-
-### 本地构建
+### 步骤 8：测试
 
 ```bash
-# 开发构建（更快，包含调试信息）
-cargo build --manifest-path=src-tauri/Cargo.toml
+# 运行 Provider 库测试
+cargo test -p dns-orchestrator-provider
 
-# 生产构建（优化）
+# 启动开发服务器并测试 UI
+pnpm tauri dev
+```
+
+## 多平台构建
+
+### 桌面端 (macOS, Windows, Linux)
+
+```bash
 pnpm tauri build
 ```
 
-### 版本管理
+### Android
 
-发布前：
+```bash
+# 初始化（仅首次）
+pnpm tauri android init
 
-1. 更新 `package.json` 中的版本号
-2. 运行 `pnpm sync-version` 同步到其他文件
-3. 提交更改：`git commit -am "chore: bump version to x.y.z"`
-4. 创建 git 标签：`git tag vx.y.z`
-5. 推送：`git push && git push --tags`
+# 开发模式
+pnpm tauri android dev
+
+# 发布构建
+pnpm tauri android build
+```
+
+**注意**：Android 使用 `rustls` 而非 `native-tls`，以避免 OpenSSL 交叉编译问题。
+
+### Web 模式
+
+```bash
+# 开发模式（需要运行 actix-web 后端）
+pnpm dev:web
+
+# 构建
+pnpm build:web
+```
 
 ### GitHub Actions 发布
 
-项目使用 GitHub Actions 进行自动化发布（`.github/workflows/release.yml`）。
+推送标签以触发自动构建：
+
+```bash
+git tag v1.1.0
+git push origin v1.1.0
+```
 
 **支持的平台：**
 - macOS（Apple Silicon + Intel）
 - Windows（x64 + ARM64）
 - Linux（x64 + ARM64）
-
-**触发发布：**
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-工作流将：
-1. 并行构建所有平台
-2. 签名二进制文件（需要 `TAURI_SIGNING_PRIVATE_KEY` secret）
-3. 创建 GitHub Release 草稿
-4. 上传所有安装程序和更新清单
+- Android（ARM64、ARM32、x64）
 
 ## 测试
 
 ### 运行测试
 
 ```bash
-# 运行 Rust 测试
-cargo test --manifest-path=src-tauri/Cargo.toml
+# Provider 库测试
+cargo test -p dns-orchestrator-provider
 
-# 运行前端测试（如果添加了测试）
-pnpm test
+# Tauri 后端测试
+cargo test -p dns-orchestrator
+
+# 所有 Rust 测试
+cargo test --workspace
 ```
 
 ### 手动测试清单
@@ -476,7 +537,7 @@ pnpm test
 - [ ] WHOIS 查询工具
 - [ ] 主题切换
 - [ ] 语言切换
-- [ ] 应用更新（如果配置了更新服务器）
+- [ ] Android 构建和基本功能
 
 ## 常见问题
 
@@ -485,6 +546,12 @@ pnpm test
 **问题**：找不到 `webkit2gtk`（Linux）
 ```bash
 sudo apt-get install libwebkit2gtk-4.1-dev
+```
+
+**问题**：Android 上的 OpenSSL 错误
+```bash
+# 确保 Android target 使用 rustls feature
+# 检查 src-tauri/Cargo.toml 中 Android target 是否有 default-features = false
 ```
 
 **问题**：Rust 链接器错误
@@ -503,13 +570,10 @@ pnpm install
 
 **问题**："加载凭证失败"
 - 确保系统钥匙串服务正在运行（Linux：`gnome-keyring` 或 `kwallet`）
-
-**问题**：开发中的 CORS 错误
-- Tauri 应用使用自定义协议 `tauri://localhost`，绕过了 CORS
+- 在 Android 上，确保 Stronghold 已正确初始化
 
 **问题**：服务商 API 错误
 - 检查 API 凭证是否正确
-- 验证 API 端点是否可访问（检查防火墙/代理）
 - 启用调试日志：`RUST_LOG=debug pnpm tauri dev`
 
 ### 开发技巧
@@ -522,13 +586,9 @@ pnpm install
 
 ## 获取帮助
 
-- **文档**：[Tauri 文档](https://tauri.app/)、[React 文档](https://react.dev/)
+- **文档**：[Tauri 文档](https://v2.tauri.app/)、[React 文档](https://react.dev/)
 - **问题**：[GitHub Issues](https://github.com/AptS-1547/dns-orchestrator/issues)
 - **讨论**：[GitHub Discussions](https://github.com/AptS-1547/dns-orchestrator/discussions)
-
-## 贡献
-
-贡献指南请参阅主 README 中的[贡献部分](../README.zh-CN.md#贡献)。
 
 ---
 

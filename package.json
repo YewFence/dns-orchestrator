@@ -50,11 +50,11 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "i18next": "^25.7.2",
-    "lucide-react": "^0.556.0",
+    "lucide-react": "^0.559.0",
     "next-themes": "^0.4.6",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "react-i18next": "^16.4.0",
+    "react-i18next": "^16.4.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.17",
@@ -65,12 +65,12 @@
   "devDependencies": {
     "@biomejs/biome": "^2.3.8",
     "@tauri-apps/cli": "^2",
-    "@types/node": "^24.10.1",
+    "@types/node": "^24.10.2",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
     "typescript": "~5.9.3",
     "vite": "^7.2.7"
   },
-  "packageManager": "pnpm@10.24.0+sha512.01ff8ae71b4419903b65c60fb2dc9d34cf8bb6e06d03bde112ef38f7a34d6904c424ba66bea5cdcf12890230bf39f9580473140ed9c946fef328b6e5238a345a"
+  "packageManager": "pnpm@10.25.0"
 }

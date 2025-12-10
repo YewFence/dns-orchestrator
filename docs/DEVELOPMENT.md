@@ -9,7 +9,7 @@ This guide will help you set up your development environment and understand the 
 - [Project Structure](#project-structure)
 - [Development Workflow](#development-workflow)
 - [Adding a New DNS Provider](#adding-a-new-dns-provider)
-- [Building and Release](#building-and-release)
+- [Building for Different Platforms](#building-for-different-platforms)
 - [Testing](#testing)
 - [Common Issues](#common-issues)
 
@@ -47,7 +47,18 @@ sudo apt-get install -y \
   wget
 ```
 
-For other distributions, see [Tauri Prerequisites](https://tauri.app/v2/guides/prerequisites/).
+#### Android Development
+```bash
+# Install Android SDK and NDK via Android Studio or command line
+# Set environment variables
+export ANDROID_HOME=$HOME/Android/Sdk
+export NDK_HOME=$ANDROID_HOME/ndk/<version>
+
+# Initialize Tauri Android
+pnpm tauri android init
+```
+
+For other distributions, see [Tauri Prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 ## Getting Started
 
@@ -70,8 +81,14 @@ pnpm install
 ### Start Development Server
 
 ```bash
-# Start Tauri in development mode with hot reload
+# Desktop: Start Tauri in development mode with hot reload
 pnpm tauri dev
+
+# Android: Start Android development
+pnpm tauri android dev
+
+# Web mode: Start frontend with HTTP transport (requires actix-web backend)
+pnpm dev:web
 ```
 
 This will:
@@ -82,8 +99,14 @@ This will:
 ### Build for Production
 
 ```bash
-# Build optimized production bundle
+# Desktop build
 pnpm tauri build
+
+# Android build
+pnpm tauri android build
+
+# Web frontend build
+pnpm build:web
 ```
 
 Built artifacts will be in `src-tauri/target/release/bundle/`.
@@ -92,93 +115,112 @@ Built artifacts will be in `src-tauri/target/release/bundle/`.
 
 ```
 dns-orchestrator/
-├── src/                          # Frontend (React + TypeScript)
-│   ├── components/               # React components
-│   │   ├── account/              # Account management UI
-│   │   ├── dns/                  # DNS record management
-│   │   ├── domain/               # Domain management
-│   │   ├── toolbox/              # Network toolbox (DNS/WHOIS)
-│   │   ├── settings/             # Settings page
-│   │   └── ui/                   # Reusable UI components
-│   ├── stores/                   # Zustand state management
-│   │   ├── accountStore.ts       # Account state
-│   │   ├── dnsStore.ts           # DNS records state
-│   │   ├── domainStore.ts        # Domain state
-│   │   ├── toolboxStore.ts       # Toolbox state
-│   │   └── settingsStore.ts      # App settings
-│   ├── types/                    # TypeScript type definitions
-│   │   ├── account.ts
-│   │   ├── dns.ts
-│   │   ├── domain.ts
-│   │   ├── provider.ts
-│   │   └── toolbox.ts
-│   ├── i18n/                     # Internationalization
-│   │   ├── index.ts
-│   │   └── locales/
-│   │       ├── en-US.ts          # English translations
-│   │       └── zh-CN.ts          # Chinese translations
-│   ├── App.tsx                   # Root component
-│   ├── main.tsx                  # React entry point
-│   └── index.css                 # Global styles
+├── src/                              # Frontend (React + TypeScript)
+│   ├── components/                   # React components by feature
+│   │   ├── account/                  # Account management UI
+│   │   ├── dns/                      # DNS record management
+│   │   ├── domain/                   # Domain management
+│   │   ├── domains/                  # Domain selector page
+│   │   ├── home/                     # Home dashboard
+│   │   ├── toolbox/                  # Network toolbox
+│   │   ├── settings/                 # Settings page
+│   │   ├── layout/                   # Layout components
+│   │   ├── navigation/               # Navigation components
+│   │   ├── error/                    # Error boundary
+│   │   └── ui/                       # Reusable UI components
+│   ├── services/                     # Service layer
+│   │   ├── transport/                # Transport abstraction
+│   │   │   ├── types.ts              # ITransport, CommandMap
+│   │   │   ├── tauri.transport.ts    # Tauri IPC implementation
+│   │   │   └── http.transport.ts     # HTTP REST implementation
+│   │   ├── account.service.ts
+│   │   ├── dns.service.ts
+│   │   ├── domain.service.ts
+│   │   └── toolbox.service.ts
+│   ├── stores/                       # Zustand state management
+│   ├── types/                        # TypeScript type definitions
+│   ├── i18n/                         # Internationalization
+│   ├── lib/                          # Utility functions
+│   ├── constants/                    # Application constants
+│   └── hooks/                        # Custom React hooks
 │
-├── src-tauri/                    # Backend (Rust + Tauri)
+├── dns-orchestrator-provider/        # Standalone Provider Library
 │   ├── src/
-│   │   ├── commands/             # Tauri command handlers
-│   │   │   ├── account.rs        # Account management commands
-│   │   │   ├── dns.rs            # DNS operations
-│   │   │   ├── domain.rs         # Domain operations
-│   │   │   └── toolbox.rs        # Network toolbox commands
-│   │   ├── providers/            # DNS provider implementations
-│   │   │   ├── mod.rs            # Provider trait & registry
-│   │   │   ├── cloudflare.rs
-│   │   │   ├── aliyun.rs
-│   │   │   ├── dnspod.rs
-│   │   │   └── huaweicloud.rs
-│   │   ├── credentials/          # Secure credential storage
-│   │   │   ├── mod.rs
-│   │   │   └── keychain.rs       # System keychain integration
-│   │   ├── storage/              # Local data persistence
-│   │   │   ├── mod.rs
-│   │   │   └── account_store.rs
-│   │   ├── crypto.rs             # Encryption utilities
-│   │   ├── error.rs              # Error types and handling
-│   │   ├── types.rs              # Rust type definitions
-│   │   ├── lib.rs                # Tauri library entry
-│   │   └── main.rs               # Application entry
-│   ├── Cargo.toml                # Rust dependencies
-│   ├── tauri.conf.json           # Tauri configuration
-│   └── build.rs                  # Build script
+│   │   ├── lib.rs                    # Library entry, re-exports
+│   │   ├── traits.rs                 # DnsProvider trait
+│   │   ├── types.rs                  # Domain, DnsRecord, etc.
+│   │   ├── error.rs                  # ProviderError enum
+│   │   ├── factory.rs                # create_provider(), metadata
+│   │   └── providers/                # Provider implementations
+│   │       ├── mod.rs
+│   │       ├── cloudflare.rs
+│   │       ├── aliyun.rs
+│   │       ├── dnspod.rs
+│   │       └── huaweicloud.rs
+│   └── Cargo.toml
 │
-├── .github/
-│   └── workflows/
-│       └── release.yml           # GitHub Actions release workflow
-├── package.json                  # Frontend dependencies & scripts
-├── vite.config.ts                # Vite configuration
-├── tsconfig.json                 # TypeScript configuration
-└── README.md
+├── src-tauri/                        # Tauri Backend (Desktop/Mobile)
+│   ├── src/
+│   │   ├── commands/                 # Tauri command handlers
+│   │   │   ├── mod.rs
+│   │   │   ├── account.rs
+│   │   │   ├── dns.rs
+│   │   │   ├── domain.rs
+│   │   │   ├── toolbox.rs
+│   │   │   └── updater.rs
+│   │   ├── providers/                # Provider registry
+│   │   │   └── mod.rs                # ProviderRegistry + re-exports
+│   │   ├── credentials/              # Credential storage
+│   │   │   ├── mod.rs
+│   │   │   ├── keychain.rs           # Desktop keychain
+│   │   │   └── android.rs            # Android Stronghold
+│   │   ├── storage/                  # Local data persistence
+│   │   ├── crypto.rs                 # Encryption utilities
+│   │   ├── error.rs                  # Error types
+│   │   ├── types.rs                  # Rust type definitions
+│   │   ├── lib.rs                    # Tauri library entry
+│   │   └── main.rs                   # Application entry
+│   ├── tauri-plugin-apk-installer/   # Android APK installer plugin
+│   ├── Cargo.toml
+│   └── tauri.conf.json
+│
+├── src-actix-web/                    # Web Backend (WIP)
+│   ├── src/main.rs                   # Actix-web server entry
+│   ├── migration/                    # SeaORM migrations
+│   └── Cargo.toml
+│
+├── scripts/
+│   └── sync-version.mjs              # Version sync script
+├── package.json
+├── vite.config.ts                    # Platform-aware Vite config
+└── tsconfig.json
 ```
 
-### Key Components
+### Key Architecture Components
 
 #### Frontend
-- **Components**: Organized by feature (account, dns, domain, toolbox)
-- **Stores**: Zustand stores for state management (one per feature domain)
-- **Types**: Shared TypeScript interfaces matching Rust backend types
-- **i18n**: Translation files for English and Chinese
+- **Services**: Abstract backend communication via `ITransport` interface
+- **Transport**: Tauri IPC for desktop/mobile, HTTP for web
+- **Stores**: Zustand stores for state management (one per feature)
+- **Components**: Feature-based organization
 
-#### Backend
-- **Commands**: Tauri command handlers exposed to frontend via `invoke()`
-- **Providers**: DNS provider implementations following the `DnsProvider` trait
-- **Credentials**: System keychain integration for secure storage
-- **Storage**: Local JSON-based account metadata storage
+#### Backend (Tauri)
+- **Commands**: Tauri command handlers exposed to frontend
+- **Providers**: Re-exports from `dns-orchestrator-provider` + `ProviderRegistry`
+- **Credentials**: Platform-specific secure storage
+
+#### Provider Library
+- **Standalone crate**: Reusable across Tauri and web backends
+- **Feature flags**: Enable providers and TLS backends selectively
+- **Unified errors**: `ProviderError` for all provider-specific errors
 
 ## Development Workflow
 
 ### Hot Reload
 
-The development server supports hot module replacement (HMR):
 - **Frontend changes**: Instant reload without losing state
 - **Backend changes**: Requires manual restart of `pnpm tauri dev`
+- **Provider library changes**: Requires restart
 
 ### Debugging
 
@@ -188,93 +230,95 @@ Open DevTools in the application window:
 - **Windows**: `F12`
 
 #### Backend Debugging
-Add logging with the `log` crate:
-
-```rust
-use log::{info, warn, error};
-
-info!("This is an info message");
-warn!("This is a warning");
-error!("This is an error");
-```
-
-Run with logging enabled:
 ```bash
+# Enable debug logging
 RUST_LOG=debug pnpm tauri dev
+
+# More verbose
+RUST_LOG=dns_orchestrator=trace pnpm tauri dev
 ```
 
 ### Version Synchronization
-
-The project uses a custom script to keep versions in sync:
 
 ```bash
 pnpm sync-version
 ```
 
-This updates:
-- `package.json` → `version`
-- `src-tauri/tauri.conf.json` → `version`
-- `src-tauri/Cargo.toml` → `version`
+This updates version in:
+- `package.json`
+- `src-tauri/tauri.conf.json`
+- `src-tauri/Cargo.toml`
+- `src-actix-web/Cargo.toml`
 
 Always run this before creating a release.
 
+### Code Quality
+
+```bash
+# Frontend
+pnpm lint          # Run Biome linter
+pnpm format:fix    # Format code
+
+# Backend
+pnpm lint:rust     # Run Clippy
+pnpm format:rust   # Format Rust code
+
+# All checks
+pnpm check
+```
+
 ## Adding a New DNS Provider
 
-This section guides you through adding support for a new DNS provider.
+Since v1.1.0, providers are implemented in the standalone `dns-orchestrator-provider` library.
 
-### Step 1: Create the Provider Implementation
+### Step 1: Create Provider Implementation
 
-Create a new file in `src-tauri/src/providers/your_provider.rs`:
+Create `dns-orchestrator-provider/src/providers/your_provider.rs`:
 
 ```rust
 use async_trait::async_trait;
 use reqwest::Client;
-use std::collections::HashMap;
 
-use crate::error::{DnsError, Result};
-use crate::providers::DnsProvider;
+use crate::error::{ProviderError, Result};
+use crate::traits::DnsProvider;
 use crate::types::*;
 
 pub struct YourProvider {
     client: Client,
-    credentials: HashMap<String, String>,
+    api_key: String,
 }
 
 impl YourProvider {
-    pub fn new(credentials: HashMap<String, String>) -> Self {
-        Self {
+    pub fn new(credentials: ProviderCredentials) -> Result<Self> {
+        let ProviderCredentials::YourProvider { api_key } = credentials else {
+            return Err(ProviderError::InvalidCredentials {
+                provider: "your_provider".to_string(),
+            });
+        };
+
+        Ok(Self {
             client: Client::new(),
-            credentials,
-        }
+            api_key,
+        })
     }
 
-    fn get_credential(&self, key: &str) -> Result<String> {
-        self.credentials
-            .get(key)
-            .cloned()
-            .ok_or_else(|| DnsError::MissingCredential(key.to_string()))
+    fn provider_name() -> &'static str {
+        "your_provider"
     }
 }
 
 #[async_trait]
 impl DnsProvider for YourProvider {
-    fn id(&self) -> &'static str {
-        "your_provider"
-    }
-
-    async fn validate_credentials(&self) -> Result<bool> {
-        // Implement credential validation
-        // Make a simple API call to verify credentials work
+    async fn validate_credentials(&self) -> Result<()> {
+        // Make a simple API call to verify credentials
         todo!()
     }
 
     async fn list_domains(&self, params: &PaginationParams) -> Result<PaginatedResponse<Domain>> {
-        // Implement domain listing with pagination
         todo!()
     }
 
     async fn get_domain(&self, domain_id: &str) -> Result<Domain> {
-        // Implement getting single domain details
         todo!()
     }
 
@@ -283,12 +327,10 @@ impl DnsProvider for YourProvider {
         domain_id: &str,
         params: &RecordQueryParams,
     ) -> Result<PaginatedResponse<DnsRecord>> {
-        // Implement DNS record listing with pagination and filtering
         todo!()
     }
 
     async fn create_record(&self, req: &CreateDnsRecordRequest) -> Result<DnsRecord> {
-        // Implement DNS record creation
         todo!()
     }
 
@@ -297,90 +339,102 @@ impl DnsProvider for YourProvider {
         record_id: &str,
         req: &UpdateDnsRecordRequest,
     ) -> Result<DnsRecord> {
-        // Implement DNS record update
         todo!()
     }
 
     async fn delete_record(&self, record_id: &str, domain_id: &str) -> Result<()> {
-        // Implement DNS record deletion
         todo!()
     }
 }
 ```
 
-### Step 2: Register the Provider
+### Step 2: Add Feature Flag
 
-Update `src-tauri/src/providers/mod.rs`:
+Update `dns-orchestrator-provider/Cargo.toml`:
+
+```toml
+[features]
+your_provider = []
+all-providers = ["cloudflare", "aliyun", "dnspod", "huaweicloud", "your_provider"]
+```
+
+### Step 3: Register Provider
+
+Update `dns-orchestrator-provider/src/providers/mod.rs`:
 
 ```rust
+#[cfg(feature = "your_provider")]
 mod your_provider;
+#[cfg(feature = "your_provider")]
 pub use your_provider::YourProvider;
+```
 
-// In create_provider function:
-pub fn create_provider(
-    provider_type: &str,
-    credentials: HashMap<String, String>,
-) -> Result<Arc<dyn DnsProvider>> {
-    match provider_type {
-        "cloudflare" => Ok(Arc::new(CloudflareProvider::new(credentials))),
-        "aliyun" => Ok(Arc::new(AliyunProvider::new(credentials))),
-        "dnspod" => Ok(Arc::new(DnspodProvider::new(credentials))),
-        "huaweicloud" => Ok(Arc::new(HuaweicloudProvider::new(credentials))),
-        "your_provider" => Ok(Arc::new(YourProvider::new(credentials))), // Add this line
-        _ => Err(DnsError::ProviderNotFound(provider_type.to_string())),
+Update `dns-orchestrator-provider/src/factory.rs`:
+
+```rust
+pub fn create_provider(credentials: ProviderCredentials) -> Result<Arc<dyn DnsProvider>> {
+    match &credentials {
+        // ... existing providers
+        #[cfg(feature = "your_provider")]
+        ProviderCredentials::YourProvider { .. } => {
+            Ok(Arc::new(YourProvider::new(credentials)?))
+        }
     }
 }
-
-// Add provider metadata in get_all_provider_metadata():
-ProviderMetadata {
-    id: "your_provider".to_string(),
-    name: "Your Provider".to_string(),
-    description: "Description of your DNS provider".to_string(),
-    required_fields: vec![
-        ProviderCredentialField {
-            key: "apiKey".to_string(),
-            label: "API Key".to_string(),
-            field_type: "password".to_string(),
-            placeholder: Some("Enter API Key".to_string()),
-            help_text: Some("Get this from your provider dashboard".to_string()),
-        }
-    ],
-    features: ProviderFeatures::default(),
-},
 ```
 
-### Step 3: Add Frontend Types
+### Step 4: Add Credentials Type
 
-Update `src/types/provider.ts`:
+Update `dns-orchestrator-provider/src/types.rs`:
 
-```typescript
-export type ProviderType =
-  | 'cloudflare'
-  | 'aliyun'
-  | 'dnspod'
-  | 'huaweicloud'
-  | 'your_provider';  // Add this line
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ProviderCredentials {
+    // ... existing variants
+    YourProvider { api_key: String },
+}
+
+// Add to ProviderType enum
+pub enum ProviderType {
+    // ...
+    YourProvider,
+}
 ```
 
-### Step 4: Add UI Icon
+### Step 5: Add Provider Metadata
 
-Update `src/components/account/ProviderIcon.tsx`:
+Update `dns-orchestrator-provider/src/factory.rs`:
 
-```tsx
-const providerIcons: Record<ProviderType, React.ReactNode> = {
-  // ... existing providers
-  your_provider: <YourProviderIcon className="w-5 h-5" />,
-};
+```rust
+pub fn get_all_provider_metadata() -> Vec<ProviderMetadata> {
+    vec![
+        // ... existing providers
+        #[cfg(feature = "your_provider")]
+        ProviderMetadata {
+            id: "your_provider".to_string(),
+            name: "Your Provider".to_string(),
+            description: "Your DNS provider description".to_string(),
+            required_fields: vec![
+                ProviderCredentialField {
+                    key: "api_key".to_string(),
+                    label: "API Key".to_string(),
+                    field_type: FieldType::Password,
+                    placeholder: Some("Enter API Key".to_string()),
+                    help_text: Some("Get this from your provider dashboard".to_string()),
+                },
+            ],
+            features: ProviderFeatures::default(),
+        },
+    ]
+}
 ```
 
-### Step 5: Add Translations
-
-Update translation files:
+### Step 6: Add Frontend Translations
 
 **`src/i18n/locales/en-US.ts`:**
 ```typescript
 providers: {
-  // ... existing providers
   your_provider: 'Your Provider',
 }
 ```
@@ -388,95 +442,102 @@ providers: {
 **`src/i18n/locales/zh-CN.ts`:**
 ```typescript
 providers: {
-  // ... existing providers
   your_provider: '你的服务商',
 }
 ```
 
-### Step 6: Test Your Provider
+### Step 7: Add Provider Icon (Optional)
 
-1. Start the development server: `pnpm tauri dev`
-2. Add a new account with your provider
-3. Test all operations: list domains, list records, create/update/delete records
-4. Verify pagination and search functionality
+Update `src/components/account/ProviderIcon.tsx` if you have a custom icon.
 
-### Reference Implementations
-
-For complete examples, see:
-- **Simple provider**: `src-tauri/src/providers/cloudflare.rs`
-- **Complex provider**: `src-tauri/src/providers/aliyun.rs`
-
-## Building and Release
-
-### Local Build
+### Step 8: Test
 
 ```bash
-# Development build (faster, with debug info)
-cargo build --manifest-path=src-tauri/Cargo.toml
+# Run provider library tests
+cargo test -p dns-orchestrator-provider
 
-# Production build (optimized)
+# Start development server and test UI
+pnpm tauri dev
+```
+
+## Building for Different Platforms
+
+### Desktop (macOS, Windows, Linux)
+
+```bash
 pnpm tauri build
 ```
 
-### Version Management
+### Android
 
-Before releasing:
+```bash
+# Initialize (first time only)
+pnpm tauri android init
 
-1. Update version in `package.json`
-2. Run `pnpm sync-version` to sync to other files
-3. Commit changes: `git commit -am "chore: bump version to x.y.z"`
-4. Create git tag: `git tag vx.y.z`
-5. Push: `git push && git push --tags`
+# Development
+pnpm tauri android dev
+
+# Release build
+pnpm tauri android build
+```
+
+**Note**: Android uses `rustls` instead of `native-tls` to avoid OpenSSL cross-compilation issues.
+
+### Web Mode
+
+```bash
+# Development (requires running actix-web backend)
+pnpm dev:web
+
+# Build
+pnpm build:web
+```
 
 ### GitHub Actions Release
 
-The project uses GitHub Actions for automated releases (`.github/workflows/release.yml`).
+Push a tag to trigger automated builds:
 
-**Supported Platforms:**
+```bash
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+**Supported platforms:**
 - macOS (Apple Silicon + Intel)
 - Windows (x64 + ARM64)
 - Linux (x64 + ARM64)
-
-**To trigger a release:**
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-The workflow will:
-1. Build for all platforms in parallel
-2. Sign the binaries (requires `TAURI_SIGNING_PRIVATE_KEY` secret)
-3. Create a GitHub Release draft
-4. Upload all installers and update manifests
+- Android (ARM64, ARM32, x64)
 
 ## Testing
 
 ### Running Tests
 
 ```bash
-# Run Rust tests
-cargo test --manifest-path=src-tauri/Cargo.toml
+# Provider library tests
+cargo test -p dns-orchestrator-provider
 
-# Run frontend tests (if you add them)
-pnpm test
+# Tauri backend tests
+cargo test -p dns-orchestrator
+
+# All Rust tests
+cargo test --workspace
 ```
 
 ### Manual Testing Checklist
 
-Before releasing, manually test:
+Before releasing:
 
 - [ ] Account creation for all providers
-- [ ] Credential validation (valid and invalid credentials)
+- [ ] Credential validation (valid and invalid)
 - [ ] Domain listing with pagination
 - [ ] DNS record CRUD operations
-- [ ] Search and filtering functionality
+- [ ] Search and filtering
 - [ ] Account import/export with encryption
 - [ ] DNS lookup tool
 - [ ] WHOIS lookup tool
 - [ ] Theme switching
 - [ ] Language switching
-- [ ] Application updates (if update server is configured)
+- [ ] Android build and basic functionality
 
 ## Common Issues
 
@@ -485,6 +546,12 @@ Before releasing, manually test:
 **Issue**: `webkit2gtk` not found (Linux)
 ```bash
 sudo apt-get install libwebkit2gtk-4.1-dev
+```
+
+**Issue**: OpenSSL errors on Android
+```bash
+# Ensure using rustls feature for Android
+# Check src-tauri/Cargo.toml has default-features = false for Android target
 ```
 
 **Issue**: Rust linker errors
@@ -503,18 +570,15 @@ pnpm install
 
 **Issue**: "Failed to load credentials"
 - Ensure system keychain service is running (Linux: `gnome-keyring` or `kwallet`)
-
-**Issue**: CORS errors in development
-- The Tauri app uses the custom protocol `tauri://localhost` which bypasses CORS
+- On Android, ensure Stronghold is properly initialized
 
 **Issue**: Provider API errors
 - Check API credentials are correct
-- Verify API endpoints are accessible (check firewall/proxy)
 - Enable debug logging: `RUST_LOG=debug pnpm tauri dev`
 
 ### Development Tips
 
-1. **Use the React DevTools**: Inspect Zustand stores and component state
+1. **Use React DevTools**: Inspect Zustand stores and component state
 2. **Check Rust logs**: Backend errors are logged to console in dev mode
 3. **Test with real credentials**: Use test/sandbox API keys when available
 4. **Incremental compilation**: Keep `pnpm tauri dev` running for faster iteration
@@ -522,13 +586,9 @@ pnpm install
 
 ## Getting Help
 
-- **Documentation**: [Tauri Docs](https://tauri.app/), [React Docs](https://react.dev/)
+- **Documentation**: [Tauri Docs](https://v2.tauri.app/), [React Docs](https://react.dev/)
 - **Issues**: [GitHub Issues](https://github.com/AptS-1547/dns-orchestrator/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/AptS-1547/dns-orchestrator/discussions)
-
-## Contributing
-
-See the [Contributing section](../README.md#contributing) in the main README for guidelines.
 
 ---
 

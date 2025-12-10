@@ -17,7 +17,7 @@ A cross-platform desktop application for unified management of DNS records acros
 - **Advanced Search & Filtering** - Pagination, real-time search, and record type filtering with infinite scroll
 - **Account Import/Export** - Encrypted backup and migration of account configurations
 - **Network Toolbox** - Built-in DNS lookup and WHOIS query tools with history tracking
-- **Cross-Platform** - Native desktop experience on macOS, Windows, and Linux
+- **Cross-Platform** - Native experience on macOS, Windows, Linux, and Android
 - **Modern UI** - Clean interface with dark/light theme support and bilingual (English/Chinese) localization
 
 ## Supported DNS Providers
@@ -29,6 +29,8 @@ A cross-platform desktop application for unified management of DNS records acros
 | **Tencent Cloud DNSPod** | Complete DNS operations with search capabilities |
 | **Huawei Cloud DNS** | Full-featured DNS management with type filtering |
 
+> 💡 **More providers coming soon!** If you need support for a specific DNS provider, feel free to [open an issue](https://github.com/AptS-1547/dns-orchestrator/issues).
+
 ## Quick Start
 
 ### Download
@@ -38,6 +40,7 @@ Download the latest version for your platform from the [Releases](https://github
 - **macOS**: `.dmg` (Apple Silicon / Intel)
 - **Windows**: `.msi` or `.exe` (x64, ARM64)
 - **Linux**: `.deb` or `.AppImage` (x64, ARM64)
+- **Android**: `.apk` (ARM64, ARM32, x64)
 
 ### Installation
 
@@ -164,6 +167,7 @@ For in-depth architectural details, see [ARCHITECTURE.md](./docs/ARCHITECTURE.md
 - **macOS**: 10.13 (High Sierra) or later
 - **Windows**: 10 or later
 - **Linux**: Modern distribution with DBus Secret Service (GNOME Keyring, KWallet, etc.)
+- **Android**: 7.0 (Nougat) or later
 
 ## Contributing
 

@@ -6,8 +6,10 @@ This document provides an in-depth look at the architectural design of DNS Orche
 
 - [Overview](#overview)
 - [Architecture Diagram](#architecture-diagram)
+- [Project Structure](#project-structure)
 - [Frontend Architecture](#frontend-architecture)
 - [Backend Architecture](#backend-architecture)
+- [Provider Library](#provider-library)
 - [Security Architecture](#security-architecture)
 - [Performance Optimizations](#performance-optimizations)
 - [Data Flow](#data-flow)
@@ -15,11 +17,12 @@ This document provides an in-depth look at the architectural design of DNS Orche
 
 ## Overview
 
-DNS Orchestrator is a cross-platform desktop application built with a clear separation between frontend and backend:
+DNS Orchestrator is a cross-platform application built with a clear separation between frontend, backend, and DNS provider logic:
 
 - **Frontend**: React-based UI with TypeScript, Tailwind CSS, and Zustand for state management
-- **Backend**: Rust-based Tauri commands for business logic and DNS provider integrations
-- **Communication**: Tauri IPC bridge enables type-safe communication between frontend and backend
+- **Backend**: Rust-based Tauri commands for business logic (desktop/mobile), with actix-web backend for web
+- **Provider Library**: Standalone `dns-orchestrator-provider` crate for DNS provider integrations
+- **Communication**: Transport abstraction layer supports both Tauri IPC and HTTP
 - **Security**: System keychain integration ensures secure credential storage
 
 ### Technology Choices
@@ -30,60 +33,194 @@ DNS Orchestrator is a cross-platform desktop application built with a clear sepa
 | **State Management** | Zustand | Lightweight, no boilerplate, simple API |
 | **Styling** | Tailwind CSS 4 | Utility-first, rapid development, consistent design |
 | **Desktop Framework** | Tauri 2 | Smaller bundle size than Electron, Rust security benefits |
-| **Backend Language** | Rust | Memory safety, performance, async/await support |
+| **Web Backend** | actix-web | High performance, async, production-ready |
+| **Provider Library** | Standalone Rust crate | Reusable across Tauri and web backends |
 | **HTTP Client** | Reqwest | Industry standard, async, TLS support |
-| **Credential Storage** | keyring crate | Cross-platform system keychain integration |
+| **Credential Storage** | keyring / Stronghold | Cross-platform system keychain integration |
 | **Build Tool** | Vite 7 | Fast HMR, optimized production builds |
 
 ## Architecture Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         USER INTERFACE                           │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │  React Components (src/components/)                      │   │
-│  │  - AccountList, DnsRecordTable, DomainList, Toolbox      │   │
-│  └──────────────────┬───────────────────────────────────────┘   │
-│                     │                                             │
-│  ┌──────────────────▼───────────────────────────────────────┐   │
-│  │  Zustand Stores (src/stores/)                            │   │
-│  │  - accountStore, dnsStore, domainStore, toolboxStore     │   │
-│  └──────────────────┬───────────────────────────────────────┘   │
-└────────────────────┬┼───────────────────────────────────────────┘
-                     ││ Tauri IPC Bridge (invoke)
-┌────────────────────▼▼───────────────────────────────────────────┐
-│                   TAURI COMMANDS (src-tauri/src/commands/)       │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │  account.rs | dns.rs | domain.rs | toolbox.rs            │   │
-│  └──────────────────┬───────────────────────────────────────┘   │
-│                     │                                             │
-│  ┌──────────────────▼───────────────────────────────────────┐   │
-│  │  AppState (src-tauri/src/lib.rs)                         │   │
-│  │  - ProviderRegistry                                       │   │
-│  │  - CredentialStore (Keychain)                            │   │
-│  │  - Account Metadata                                       │   │
-│  └─────┬──────────────────────────┬─────────────────────────┘   │
-│        │                          │                               │
-│  ┌─────▼──────────┐      ┌────────▼──────────────────────────┐  │
-│  │  Credentials   │      │  ProviderRegistry                 │  │
-│  │  (keyring)     │      │  - Dynamic Provider Management    │  │
-│  └────────────────┘      └─────────┬─────────────────────────┘  │
-│                                     │                             │
-│  ┌──────────────────────────────────▼──────────────────────┐    │
-│  │  DNS Providers (src-tauri/src/providers/)               │    │
-│  │  - CloudflareProvider, AliyunProvider, DnspodProvider    │    │
-│  │  - HuaweicloudProvider                                   │    │
-│  │  All implement: DnsProvider trait                        │    │
-│  └──────────────────────┬───────────────────────────────────┘    │
-└─────────────────────────┼────────────────────────────────────────┘
-                          │ HTTPS Requests
-┌─────────────────────────▼────────────────────────────────────────┐
-│                    EXTERNAL DNS APIS                              │
-│  Cloudflare API | Aliyun DNS | DNSPod API | Huawei Cloud DNS     │
-└───────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                         USER INTERFACE                               │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │  React Components (src/components/)                           │  │
+│  │  - AccountList, DnsRecordTable, DomainList, Toolbox           │  │
+│  └──────────────────────┬────────────────────────────────────────┘  │
+│                         │                                            │
+│  ┌──────────────────────▼────────────────────────────────────────┐  │
+│  │  Zustand Stores (src/stores/)                                 │  │
+│  │  - accountStore, dnsStore, domainStore, toolboxStore          │  │
+│  └──────────────────────┬────────────────────────────────────────┘  │
+│                         │                                            │
+│  ┌──────────────────────▼────────────────────────────────────────┐  │
+│  │  Service Layer (src/services/)                                │  │
+│  │  - accountService, dnsService, domainService, toolboxService  │  │
+│  └──────────────────────┬────────────────────────────────────────┘  │
+│                         │                                            │
+│  ┌──────────────────────▼────────────────────────────────────────┐  │
+│  │  Transport Abstraction (src/services/transport/)              │  │
+│  │  - ITransport interface                                       │  │
+│  │  - TauriTransport (Tauri IPC) | HttpTransport (REST API)      │  │
+│  └──────────────────────┬────────────────────────────────────────┘  │
+└─────────────────────────┼────────────────────────────────────────────┘
+                          │
+        ┌─────────────────┴─────────────────┐
+        │                                   │
+        ▼ Tauri IPC                         ▼ HTTP REST
+┌───────────────────────────┐    ┌───────────────────────────┐
+│   TAURI BACKEND           │    │   ACTIX-WEB BACKEND       │
+│   (src-tauri/)            │    │   (src-actix-web/)        │
+│                           │    │                           │
+│  ┌─────────────────────┐  │    │  ┌─────────────────────┐  │
+│  │  Commands Layer     │  │    │  │  HTTP Handlers      │  │
+│  │  - account.rs       │  │    │  │  (REST endpoints)   │  │
+│  │  - dns.rs           │  │    │  │                     │  │
+│  │  - domain.rs        │  │    │  └──────────┬──────────┘  │
+│  │  - toolbox.rs       │  │    │             │             │
+│  └──────────┬──────────┘  │    │  ┌──────────▼──────────┐  │
+│             │             │    │  │  SeaORM Database    │  │
+│  ┌──────────▼──────────┐  │    │  │  (MySQL/PG/SQLite)  │  │
+│  │  AppState           │  │    │  └─────────────────────┘  │
+│  │  - ProviderRegistry │  │    │                           │
+│  │  - CredentialStore  │  │    └───────────┬───────────────┘
+│  └──────────┬──────────┘  │                │
+│             │             │                │
+└─────────────┼─────────────┘                │
+              │                              │
+              └──────────────┬───────────────┘
+                             │
+              ┌──────────────▼───────────────┐
+              │  DNS PROVIDER LIBRARY        │
+              │  (dns-orchestrator-provider) │
+              │                              │
+              │  ┌────────────────────────┐  │
+              │  │  DnsProvider Trait     │  │
+              │  │  - list_domains()      │  │
+              │  │  - list_records()      │  │
+              │  │  - create/update/del   │  │
+              │  └───────────┬────────────┘  │
+              │              │               │
+              │  ┌───────────▼────────────┐  │
+              │  │  Provider Impls        │  │
+              │  │  - CloudflareProvider  │  │
+              │  │  - AliyunProvider      │  │
+              │  │  - DnspodProvider      │  │
+              │  │  - HuaweicloudProvider │  │
+              │  └───────────┬────────────┘  │
+              └──────────────┼───────────────┘
+                             │ HTTPS
+              ┌──────────────▼───────────────┐
+              │       EXTERNAL DNS APIS       │
+              │  Cloudflare | Aliyun | DNSPod │
+              │  Huawei Cloud                 │
+              └───────────────────────────────┘
+```
+
+## Project Structure
+
+```
+dns-orchestrator/
+├── src/                              # Frontend (React + TypeScript)
+│   ├── components/                   # React components by feature
+│   ├── services/                     # Service layer (NEW)
+│   │   ├── transport/                # Transport abstraction
+│   │   │   ├── types.ts              # ITransport interface, CommandMap
+│   │   │   ├── tauri.transport.ts    # Tauri IPC implementation
+│   │   │   └── http.transport.ts     # HTTP REST implementation
+│   │   ├── account.service.ts
+│   │   ├── dns.service.ts
+│   │   ├── domain.service.ts
+│   │   └── toolbox.service.ts
+│   ├── stores/                       # Zustand state management
+│   ├── types/                        # TypeScript type definitions
+│   └── i18n/                         # Internationalization
+│
+├── dns-orchestrator-provider/        # Standalone Provider Library (NEW)
+│   ├── src/
+│   │   ├── lib.rs                    # Library entry, re-exports
+│   │   ├── traits.rs                 # DnsProvider trait definition
+│   │   ├── types.rs                  # Shared types (Domain, DnsRecord, etc.)
+│   │   ├── error.rs                  # ProviderError enum
+│   │   ├── factory.rs                # create_provider(), metadata
+│   │   └── providers/                # Provider implementations
+│   │       ├── cloudflare.rs
+│   │       ├── aliyun.rs
+│   │       ├── dnspod.rs
+│   │       └── huaweicloud.rs
+│   └── Cargo.toml                    # Feature flags for TLS backend
+│
+├── src-tauri/                        # Tauri Backend (Desktop/Mobile)
+│   ├── src/
+│   │   ├── commands/                 # Tauri command handlers
+│   │   ├── providers/mod.rs          # ProviderRegistry only (simplified)
+│   │   ├── credentials/              # Keychain/Stronghold storage
+│   │   ├── storage/                  # Local data persistence
+│   │   └── error.rs                  # Re-exports library errors
+│   └── Cargo.toml                    # Platform-specific dependencies
+│
+├── src-actix-web/                    # Web Backend (NEW, WIP)
+│   ├── src/main.rs                   # Actix-web server entry
+│   └── migration/                    # SeaORM database migrations
+│
+└── vite.config.ts                    # Platform-aware build config
 ```
 
 ## Frontend Architecture
+
+### Service Layer (New in v1.1.0)
+
+The service layer abstracts backend communication:
+
+```typescript
+// src/services/transport/types.ts
+export interface ITransport {
+  invoke<K extends NoArgsCommands>(command: K): Promise<CommandMap[K]["result"]>
+  invoke<K extends WithArgsCommands>(
+    command: K,
+    args: CommandMap[K]["args"]
+  ): Promise<CommandMap[K]["result"]>
+}
+
+// CommandMap provides type-safe command definitions
+export interface CommandMap {
+  list_accounts: { args: Record<string, never>; result: ApiResponse<Account[]> }
+  create_account: { args: { request: CreateAccountRequest }; result: ApiResponse<Account> }
+  // ... all commands with full type safety
+}
+```
+
+**Transport Implementations**:
+
+```typescript
+// src/services/transport/tauri.transport.ts (Desktop/Mobile)
+export class TauriTransport implements ITransport {
+  async invoke(command, args?) {
+    return await tauriInvoke(command, args)
+  }
+}
+
+// src/services/transport/http.transport.ts (Web)
+export class HttpTransport implements ITransport {
+  async invoke(command, args?) {
+    return await fetch(`/api/${command}`, { method: 'POST', body: JSON.stringify(args) })
+  }
+}
+```
+
+**Build-time Transport Selection**:
+
+```typescript
+// vite.config.ts
+resolve: {
+  alias: {
+    "#transport-impl": platform === "web"
+      ? "./src/services/transport/http.transport.ts"
+      : "./src/services/transport/tauri.transport.ts",
+  },
+}
+```
 
 ### Component Structure
 
@@ -91,34 +228,18 @@ Components are organized by feature domain:
 
 ```
 src/components/
-├── account/          # Account management
-│   ├── AccountList.tsx
-│   ├── AccountForm.tsx
-│   ├── ExportDialog.tsx
-│   ├── ImportDialog.tsx
-│   └── ProviderIcon.tsx
-├── dns/              # DNS record management
-│   ├── DnsRecordTable.tsx  (main list with pagination)
-│   ├── DnsRecordRow.tsx
-│   └── DnsRecordForm.tsx
-├── domain/           # Domain management
-│   ├── DomainList.tsx
-│   └── DomainCard.tsx
-├── toolbox/          # Network utilities
-│   ├── ToolboxPage.tsx
-│   ├── DnsLookup.tsx
-│   ├── WhoisLookup.tsx
-│   └── HistoryChips.tsx
-├── settings/         # Application settings
-│   └── SettingsPage.tsx
-└── ui/               # Reusable components (21 components)
-    ├── button.tsx
-    ├── dialog.tsx
-    ├── select.tsx
-    └── ... (Radix UI wrappers)
+├── account/              # Account management
+├── dns/                  # DNS record management
+├── domain/               # Domain management
+├── domains/              # Domain selector page
+├── home/                 # Home dashboard
+├── toolbox/              # Network utilities
+├── settings/             # Application settings
+├── layout/               # Layout components (sidebar, header)
+├── navigation/           # Navigation components
+├── error/                # Error boundary components
+└── ui/                   # Reusable UI components (Radix wrappers)
 ```
-
-**Design Pattern**: Feature-based organization ensures high cohesion and low coupling.
 
 ### State Management (Zustand)
 
@@ -127,67 +248,22 @@ Each feature domain has its own store:
 ```typescript
 // src/stores/accountStore.ts
 interface AccountStore {
-  accounts: Account[];
-  currentAccount: Account | null;
-  setAccounts: (accounts: Account[]) => void;
-  setCurrentAccount: (account: Account | null) => void;
+  accounts: Account[]
+  currentAccount: Account | null
+  fetchAccounts: () => Promise<void>
   // ...
 }
 
 // src/stores/dnsStore.ts
 interface DnsStore {
-  records: DnsRecord[];
-  currentPage: number;
-  totalPages: number;
-  searchQuery: string;
-  filterType: RecordType | 'ALL';
-  PAGE_SIZE: 20;
+  records: DnsRecord[]
+  currentPage: number
+  totalPages: number
+  searchQuery: string
+  filterType: RecordType | 'ALL'
   // ...
 }
 ```
-
-**Benefits**:
-- **Separation of Concerns**: Each store manages its own domain
-- **No Prop Drilling**: Components access state directly
-- **Type Safety**: Full TypeScript support
-- **Minimal Boilerplate**: Simple API without actions/reducers
-
-### Internationalization (i18n)
-
-Translation files use a structured format:
-
-```typescript
-// src/i18n/locales/en-US.ts
-export default {
-  common: { /* common strings */ },
-  account: { /* account-specific */ },
-  dns: { /* DNS-specific */ },
-  providers: {
-    cloudflare: 'Cloudflare',
-    aliyun: 'Alibaba Cloud DNS',
-    // ...
-  },
-};
-```
-
-Language switching is instant and doesn't require app restart.
-
-### Component Communication
-
-```
-User Action → Component → Zustand Store → Tauri invoke() → Backend
-                   ↑                                          ↓
-                   └──────────── Store Update ←──────────────┘
-```
-
-Example flow:
-1. User clicks "Create DNS Record"
-2. `DnsRecordForm` validates input
-3. Calls `createDnsRecord()` from `dnsStore`
-4. Store invokes Tauri command: `invoke('create_dns_record', { ... })`
-5. Backend processes request and returns result
-6. Store updates state with new record
-7. UI re-renders automatically
 
 ## Backend Architecture
 
@@ -196,61 +272,21 @@ Example flow:
 ```rust
 // src-tauri/src/lib.rs
 pub struct AppState {
-    pub registry: ProviderRegistry,           // Provider instances
-    pub credential_store: Arc<dyn CredentialStore>,  // System keychain
-    pub accounts: RwLock<Vec<Account>>,       // Account metadata
-    pub app_handle: tauri::AppHandle,         // Tauri handle
+    pub registry: ProviderRegistry,                    // Provider instances
+    pub credential_store: Arc<dyn CredentialStore>,    // System keychain
+    pub accounts: RwLock<Vec<Account>>,                // Account metadata
+    pub app_handle: tauri::AppHandle,                  // Tauri handle
 }
 ```
 
-**Lifecycle**:
-1. Application starts → `setup()` hook creates `AppState`
-2. Loads account metadata from persistent storage
-3. Restores credentials from system keychain
-4. Registers providers in `ProviderRegistry`
-5. State is managed globally via `app.manage(state)`
+### Provider Registry (Simplified)
 
-### Provider Abstraction
-
-The `DnsProvider` trait defines a common interface for all providers:
+The `ProviderRegistry` now only manages provider instances, delegating creation to the library:
 
 ```rust
-#[async_trait]
-pub trait DnsProvider: Send + Sync {
-    fn id(&self) -> &'static str;
+// src-tauri/src/providers/mod.rs
+pub use dns_orchestrator_provider::{create_provider, get_all_provider_metadata, DnsProvider};
 
-    async fn validate_credentials(&self) -> Result<bool>;
-
-    async fn list_domains(&self, params: &PaginationParams)
-        -> Result<PaginatedResponse<Domain>>;
-
-    async fn get_domain(&self, domain_id: &str) -> Result<Domain>;
-
-    async fn list_records(&self, domain_id: &str, params: &RecordQueryParams)
-        -> Result<PaginatedResponse<DnsRecord>>;
-
-    async fn create_record(&self, req: &CreateDnsRecordRequest)
-        -> Result<DnsRecord>;
-
-    async fn update_record(&self, record_id: &str, req: &UpdateDnsRecordRequest)
-        -> Result<DnsRecord>;
-
-    async fn delete_record(&self, record_id: &str, domain_id: &str)
-        -> Result<()>;
-}
-```
-
-**Benefits**:
-- **Polymorphism**: Treat all providers uniformly
-- **Extensibility**: Add new providers without changing core logic
-- **Testability**: Mock providers for testing
-- **Type Safety**: Compile-time guarantees
-
-### Provider Registry
-
-Dynamic management of provider instances:
-
-```rust
 pub struct ProviderRegistry {
     providers: Arc<RwLock<HashMap<String, Arc<dyn DnsProvider>>>>,
 }
@@ -262,319 +298,155 @@ impl ProviderRegistry {
 }
 ```
 
-**Pattern**: Registry pattern for centralized instance management
+### Platform-Specific Dependencies
 
-**Key Features**:
-- Thread-safe with `Arc<RwLock<>>`
-- Lazy initialization (providers created on-demand)
-- Automatic cleanup when accounts are deleted
+```toml
+# src-tauri/Cargo.toml
 
-### Command Layer
+# Desktop (macOS, Windows, Linux)
+[target."cfg(not(any(target_os = \"android\", target_os = \"ios\")))".dependencies]
+dns-orchestrator-provider = { path = "../dns-orchestrator-provider", default-features = false, features = ["all-providers", "native-tls"] }
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 
-Tauri commands bridge frontend and backend:
+# Android
+[target."cfg(target_os = \"android\")".dependencies]
+dns-orchestrator-provider = { path = "../dns-orchestrator-provider", default-features = false, features = ["all-providers", "rustls"] }
+tauri-plugin-stronghold = "2"  # Secure storage for Android
+```
+
+## Provider Library
+
+### Design Goals
+
+1. **Reusability**: Same provider code works in Tauri and actix-web backends
+2. **Feature Flags**: Enable providers and TLS backends selectively
+3. **Unified Error Handling**: `ProviderError` maps all provider-specific errors
+
+### DnsProvider Trait
 
 ```rust
-// src-tauri/src/commands/dns.rs
-#[tauri::command]
-pub async fn list_dns_records(
-    account_id: String,
-    domain_id: String,
-    page: u32,
-    page_size: u32,
-    search: Option<String>,
-    record_type: Option<String>,
-    state: tauri::State<'_, AppState>,
-) -> Result<PaginatedResponse<DnsRecord>, String> {
-    // 1. Get provider from registry
-    let provider = state.registry.get(&account_id).await
-        .ok_or("Provider not found")?;
-
-    // 2. Build query params
-    let params = RecordQueryParams { page, page_size, search, record_type };
-
-    // 3. Call provider method
-    provider.list_records(&domain_id, &params).await
-        .map_err(|e| e.to_string())
+// dns-orchestrator-provider/src/traits.rs
+#[async_trait]
+pub trait DnsProvider: Send + Sync {
+    async fn validate_credentials(&self) -> Result<()>;
+    async fn list_domains(&self, params: &PaginationParams) -> Result<PaginatedResponse<Domain>>;
+    async fn get_domain(&self, domain_id: &str) -> Result<Domain>;
+    async fn list_records(&self, domain_id: &str, params: &RecordQueryParams) -> Result<PaginatedResponse<DnsRecord>>;
+    async fn create_record(&self, req: &CreateDnsRecordRequest) -> Result<DnsRecord>;
+    async fn update_record(&self, record_id: &str, req: &UpdateDnsRecordRequest) -> Result<DnsRecord>;
+    async fn delete_record(&self, record_id: &str, domain_id: &str) -> Result<()>;
 }
 ```
 
-**Error Handling**: All errors are converted to strings for JSON serialization
+### Feature Flags
+
+```toml
+# dns-orchestrator-provider/Cargo.toml
+[features]
+default = ["native-tls", "all-providers"]
+
+# TLS backend (choose one)
+native-tls = ["reqwest/native-tls"]     # Desktop default
+rustls = ["reqwest/rustls-tls"]          # Android (avoids OpenSSL cross-compile)
+
+# Providers (enable individually or all)
+cloudflare = []
+aliyun = []
+dnspod = []
+huaweicloud = []
+all-providers = ["cloudflare", "aliyun", "dnspod", "huaweicloud"]
+```
+
+### Error Handling
+
+```rust
+// dns-orchestrator-provider/src/error.rs
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "code")]
+pub enum ProviderError {
+    NetworkError { provider: String, detail: String },
+    InvalidCredentials { provider: String },
+    RecordExists { provider: String, record_name: String, raw_message: Option<String> },
+    RecordNotFound { provider: String, record_id: String, raw_message: Option<String> },
+    InvalidParameter { provider: String, param: String, detail: String },
+    QuotaExceeded { provider: String, raw_message: Option<String> },
+    DomainNotFound { provider: String, domain: String },
+    ParseError { provider: String, detail: String },
+    Unknown { provider: String, raw_code: Option<String>, raw_message: String },
+}
+```
 
 ## Security Architecture
 
-### Credential Storage
+### Credential Storage by Platform
 
-**Design Goal**: Never store API credentials in plaintext
-
-```rust
-pub trait CredentialStore: Send + Sync {
-    fn store(&self, account_id: &str, credentials: HashMap<String, String>) -> Result<()>;
-    fn retrieve(&self, account_id: &str) -> Result<HashMap<String, String>>;
-    fn delete(&self, account_id: &str) -> Result<()>;
-}
-
-// Platform-specific implementation
-pub struct KeychainStore;
-
-impl CredentialStore for KeychainStore {
-    fn store(&self, account_id: &str, credentials: HashMap<String, String>) -> Result<()> {
-        // Uses keyring crate to access system keychain
-        // macOS: Keychain
-        // Windows: Credential Manager
-        // Linux: Secret Service (GNOME Keyring, KWallet)
-    }
-}
-```
-
-**Benefits**:
-- OS-level security (encrypted, access-controlled)
-- Integration with system authentication
-- Credentials persist across app restarts
-- No plaintext files
+| Platform | Storage Mechanism |
+|----------|-------------------|
+| **macOS** | Keychain via `keyring` crate |
+| **Windows** | Credential Manager via `keyring` crate |
+| **Linux** | Secret Service (GNOME Keyring/KWallet) via `keyring` crate |
+| **Android** | Stronghold via `tauri-plugin-stronghold` |
 
 ### Account Import/Export Encryption
 
 ```rust
-// src-tauri/src/crypto.rs
-pub fn encrypt_data(data: &str, password: &str) -> Result<String> {
-    // 1. Derive key from password using Argon2
-    // 2. Generate random nonce
-    // 3. Encrypt with ChaCha20-Poly1305 AEAD
-    // 4. Return base64-encoded: nonce || ciphertext || tag
-}
-
-pub fn decrypt_data(encrypted: &str, password: &str) -> Result<String> {
-    // 1. Base64 decode
-    // 2. Split nonce, ciphertext, tag
-    // 3. Derive key from password
-    // 4. Decrypt and verify authentication tag
-}
+// AES-GCM encryption with PBKDF2 key derivation
+pub fn encrypt_data(data: &str, password: &str) -> Result<String>
+pub fn decrypt_data(encrypted: &str, password: &str) -> Result<String>
 ```
-
-**Security Properties**:
-- **Authenticated Encryption**: ChaCha20-Poly1305 prevents tampering
-- **Key Derivation**: Argon2 resists brute-force attacks
-- **Random Nonces**: Prevents replay attacks
-- **Password-Based**: User controls access
-
-### HTTPS Communication
-
-All DNS provider APIs are accessed over HTTPS:
-
-```rust
-let client = Client::builder()
-    .timeout(Duration::from_secs(30))
-    .build()?;
-
-let response = client
-    .get(&url)
-    .header("Authorization", format!("Bearer {}", api_token))
-    .send()
-    .await?;
-```
-
-**Security**: TLS 1.2+, certificate validation, secure defaults
 
 ## Performance Optimizations
 
-### 1. Pagination
-
-**Problem**: Loading thousands of DNS records at once causes UI lag
-
-**Solution**: Server-side pagination with configurable page size
-
-```typescript
-// Frontend
-const PAGE_SIZE = 20;
-
-// Backend
-pub struct RecordQueryParams {
-    pub page: u32,
-    pub page_size: u32,
-    pub search: Option<String>,
-    pub record_type: Option<String>,
-}
-```
-
-**Benefits**:
-- Reduced memory usage
-- Faster initial load
-- Smooth scrolling
-
-### 2. Search Debouncing
-
-**Problem**: Sending API requests on every keystroke is wasteful
-
-**Solution**: Debounce search input with `use-debounce`
-
-```typescript
-const [searchQuery, setSearchQuery] = useState('');
-const debouncedSearch = useDebounce(searchQuery, 300);
-
-useEffect(() => {
-  fetchRecords({ search: debouncedSearch });
-}, [debouncedSearch]);
-```
-
-**Benefits**:
-- Reduces API calls by ~90%
-- Better user experience (no lag)
-- Lower backend load
-
-### 3. Infinite Scroll
-
-**Problem**: Traditional pagination requires clicking "Next" repeatedly
-
-**Solution**: IntersectionObserver-based infinite scroll
-
-```typescript
-const observer = new IntersectionObserver((entries) => {
-  if (entries[0].isIntersecting && hasMore && !loading) {
-    loadMore();
-  }
-}, { threshold: 1.0 });
-
-observer.observe(sentinelRef.current);
-```
-
-**Benefits**:
-- Natural browsing experience
-- Automatic loading as user scrolls
-- Memory-efficient (old pages can be garbage collected)
-
-### 4. Rust Async Concurrency
-
-All provider API calls use Tokio async runtime:
-
-```rust
-#[tokio::main]
-async fn main() {
-    // Multiple concurrent requests
-    let (domains, records) = tokio::join!(
-        provider.list_domains(&params),
-        provider.list_records(&domain_id, &params),
-    );
-}
-```
-
-**Benefits**:
-- Non-blocking I/O
-- Efficient use of system resources
-- Better responsiveness under load
+1. **Pagination**: Server-side pagination with 20 records per page
+2. **Search Debouncing**: 300ms debounce on search input
+3. **Infinite Scroll**: IntersectionObserver-based loading
+4. **Rust Async**: Tokio async runtime for non-blocking I/O
+5. **Feature Flags**: Only compile enabled providers
 
 ## Data Flow
-
-### Account Creation Flow
-
-```
-1. User fills AccountForm
-2. Frontend validates input
-3. invoke('create_account', { name, provider_type, credentials })
-4. Backend:
-   a. Create Provider instance
-   b. validate_credentials()
-   c. Store credentials in keychain
-   d. Save account metadata to storage
-   e. Register provider in ProviderRegistry
-5. Frontend updates accountStore
-6. UI shows new account
-```
 
 ### DNS Record Query Flow
 
 ```
-1. User selects account and domain
-2. User types in search box (debounced)
-3. Frontend calls dnsStore.fetchRecords()
-4. invoke('list_dns_records', { account_id, domain_id, page, search, type })
-5. Backend:
-   a. Get provider from ProviderRegistry
-   b. Build RecordQueryParams
-   c. Call provider.list_records()
-   d. Provider makes HTTPS request to DNS API
-   e. Parse response and map to DnsRecord type
-   f. Return PaginatedResponse
-6. Frontend updates dnsStore.records
-7. DnsRecordTable re-renders with new data
-8. If user scrolls to bottom, repeat from step 3 with page+1
-```
-
-### Credential Retrieval Flow
-
-```
-App Startup:
-1. Load account metadata from storage
-2. For each account:
-   a. Retrieve credentials from keychain
-   b. Create provider instance
-   c. Register in ProviderRegistry
-
-Result: All accounts ready with credentials loaded
+1. User types in search box (debounced 300ms)
+2. Store calls dnsService.listRecords()
+3. Service uses transport.invoke('list_dns_records', args)
+4. Transport routes to:
+   - Tauri: IPC to Rust command
+   - Web: HTTP POST to actix-web
+5. Backend gets provider from registry
+6. Provider makes HTTPS request to DNS API
+7. Response flows back through layers
+8. Store updates, UI re-renders
 ```
 
 ## Design Decisions
 
-### Why Tauri over Electron?
+### Why Separate Provider Library?
 
-| Criterion | Tauri | Electron |
-|-----------|-------|----------|
-| **Bundle Size** | ~15 MB | ~100+ MB |
-| **Memory Usage** | ~50 MB | ~150+ MB |
-| **Security** | Rust memory safety | V8 sandbox |
-| **Startup Time** | Fast | Slower |
-| **Native APIs** | Direct access | Through Node.js |
+| Benefit | Description |
+|---------|-------------|
+| **Reusability** | Same code for Tauri and actix-web backends |
+| **Testability** | Unit test providers independently |
+| **Feature Flags** | Compile only needed providers |
+| **TLS Flexibility** | Switch between native-tls and rustls per platform |
 
-**Decision**: Tauri's smaller footprint and Rust security benefits outweigh Electron's larger ecosystem.
+### Why Transport Abstraction?
 
-### Why Zustand over Redux?
+| Benefit | Description |
+|---------|-------------|
+| **Multi-Platform** | Same frontend code for desktop, mobile, and web |
+| **Type Safety** | CommandMap enforces correct args/return types |
+| **Testability** | Mock transport for frontend testing |
 
-| Criterion | Zustand | Redux |
-|-----------|---------|-------|
-| **Boilerplate** | Minimal | High (actions, reducers) |
-| **Learning Curve** | Low | Steep |
-| **TypeScript** | Excellent | Good |
-| **Bundle Size** | 1 KB | 11 KB |
-| **Middleware** | Simple hooks | Complex middleware |
+### Why actix-web for Web Backend?
 
-**Decision**: For this app's complexity, Zustand provides sufficient power with much less code.
-
-### Why System Keychain over Encrypted File?
-
-**Advantages of System Keychain**:
-1. OS-level security (hardware-backed on some systems)
-2. No need to manage encryption keys
-3. Integration with system authentication
-4. Protected against unauthorized access
-5. Industry best practice
-
-**Disadvantages of Encrypted File**:
-1. Key management complexity
-2. Vulnerable if password is weak
-3. Easier to extract and attack offline
-4. Not protected by OS security features
-
-### Why Separate Providers Instead of Generic Client?
-
-**Benefits of Provider Abstraction**:
-1. **Flexibility**: Each provider has unique quirks (pagination, rate limits, etc.)
-2. **Maintainability**: Changes to one provider don't affect others
-3. **Testability**: Mock individual providers easily
-4. **Extensibility**: Add providers without changing core logic
-5. **Type Safety**: Compile-time guarantees per provider
-
-A generic client would force all providers into the same mold, losing these benefits.
-
-## Future Improvements
-
-Potential architectural enhancements:
-
-1. **Provider Plugin System**: Load providers dynamically via WebAssembly or dynamic libraries
-2. **Caching Layer**: Cache frequently-accessed domains/records in SQLite
-3. **Background Sync**: Periodically check for DNS record changes
-4. **Offline Mode**: Queue operations when network is unavailable
-5. **Multi-Account Operations**: Bulk operations across multiple accounts
-6. **GraphQL API**: Replace REST with GraphQL for more efficient querying
+| Criterion | actix-web | axum |
+|-----------|-----------|------|
+| **Performance** | Fastest Rust web framework | Very fast |
+| **Maturity** | Battle-tested in production | Newer |
+| **Ecosystem** | Large plugin ecosystem | Growing |
 
 ---
 
-This architecture balances simplicity, security, and performance. It's designed to be maintainable by individual developers while being robust enough for production use.
+This architecture balances simplicity, security, and performance while supporting multiple platforms with shared code.
