@@ -128,7 +128,9 @@ function App() {
       case "main":
         return <HomePage onNavigate={handleNavigate} onQuickAccess={handleQuickAccess} />
       case "domains":
-        return <DomainSelectorPage onBack={() => setCurrentView("main")} onSelect={handleSelectDomain} />
+        return (
+          <DomainSelectorPage onBack={() => setCurrentView("main")} onSelect={handleSelectDomain} />
+        )
       case "domains-detail":
         if (selectedDomainInfo) {
           return (
@@ -140,7 +142,9 @@ function App() {
           )
         }
         // 如果没有选中信息，回到列表
-        return <DomainSelectorPage onBack={() => setCurrentView("main")} onSelect={handleSelectDomain} />
+        return (
+          <DomainSelectorPage onBack={() => setCurrentView("main")} onSelect={handleSelectDomain} />
+        )
       case "settings":
         return <SettingsPage onBack={() => setCurrentView("main")} />
       case "toolbox":

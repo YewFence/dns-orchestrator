@@ -234,10 +234,11 @@ impl DnspodProvider {
         action: &str,
         body: &B,
     ) -> Result<T> {
-        let payload = serde_json::to_string(body).map_err(|e| ProviderError::SerializationError {
-            provider: self.provider_name().to_string(),
-            detail: e.to_string(),
-        })?;
+        let payload =
+            serde_json::to_string(body).map_err(|e| ProviderError::SerializationError {
+                provider: self.provider_name().to_string(),
+                detail: e.to_string(),
+            })?;
 
         let timestamp = Utc::now().timestamp();
         let authorization = self.sign(action, &payload, timestamp);
@@ -283,14 +284,13 @@ impl DnspodProvider {
                 .map_error(
                     RawApiError::with_code(&error.code, &error.message),
                     ErrorContext::default(),
-                )
-                .into());
+                ));
         }
 
         tc_response
             .response
             .data
-            .ok_or_else(|| self.parse_error("响应中缺少数据").into())
+            .ok_or_else(|| self.parse_error("响应中缺少数据"))
     }
 
     /// 将 `DNSPod` 域名状态转换为内部状态
@@ -318,8 +318,7 @@ impl DnspodProvider {
                 provider: "dnspod".to_string(),
                 param: "record_type".to_string(),
                 detail: format!("不支持的记录类型: {record_type}"),
-            }
-            .into()),
+            }),
         }
     }
 
@@ -596,11 +595,13 @@ impl DnsProvider for DnspodProvider {
             mx: Option<u16>,
         }
 
-        let record_id_num: u64 = record_id.parse().map_err(|_| ProviderError::RecordNotFound {
-            provider: self.provider_name().to_string(),
-            record_id: record_id.to_string(),
-            raw_message: None,
-        })?;
+        let record_id_num: u64 = record_id
+            .parse()
+            .map_err(|_| ProviderError::RecordNotFound {
+                provider: self.provider_name().to_string(),
+                record_id: record_id.to_string(),
+                raw_message: None,
+            })?;
 
         // 获取域名信息
         let domain_info = self.get_domain(&req.domain_id).await?;
@@ -645,11 +646,13 @@ impl DnsProvider for DnspodProvider {
         #[derive(Debug, Deserialize)]
         struct DeleteRecordResponse {}
 
-        let record_id_num: u64 = record_id.parse().map_err(|_| ProviderError::RecordNotFound {
-            provider: self.provider_name().to_string(),
-            record_id: record_id.to_string(),
-            raw_message: None,
-        })?;
+        let record_id_num: u64 = record_id
+            .parse()
+            .map_err(|_| ProviderError::RecordNotFound {
+                provider: self.provider_name().to_string(),
+                record_id: record_id.to_string(),
+                raw_message: None,
+            })?;
 
         // 获取域名信息
         let domain_info = self.get_domain(domain_id).await?;

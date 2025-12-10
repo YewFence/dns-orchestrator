@@ -29,7 +29,10 @@ pub fn create_provider(credentials: ProviderCredentials) -> Result<Arc<dyn DnsPr
         ProviderCredentials::Aliyun {
             access_key_id,
             access_key_secret,
-        } => Ok(Arc::new(AliyunProvider::new(access_key_id, access_key_secret))),
+        } => Ok(Arc::new(AliyunProvider::new(
+            access_key_id,
+            access_key_secret,
+        ))),
         #[cfg(feature = "dnspod")]
         ProviderCredentials::Dnspod {
             secret_id,

@@ -4,14 +4,22 @@ use std::collections::HashMap;
 // ============ Re-export 库类型 ============
 
 pub use dns_orchestrator_provider::{
-    // 分页类型
-    PaginatedResponse, PaginationParams, RecordQueryParams,
     // DNS 记录类型
-    CreateDnsRecordRequest, DnsRecord, DnsRecordType, UpdateDnsRecordRequest,
-    // Provider 元数据类型
-    ProviderCredentials, ProviderMetadata,
+    CreateDnsRecordRequest,
+    DnsRecord,
+    DnsRecordType,
     // Domain 相关（重命名避免冲突）
-    Domain as LibDomain, DomainStatus, ProviderType,
+    Domain as LibDomain,
+    DomainStatus,
+    // 分页类型
+    PaginatedResponse,
+    PaginationParams,
+    // Provider 元数据类型
+    ProviderCredentials,
+    ProviderMetadata,
+    ProviderType,
+    RecordQueryParams,
+    UpdateDnsRecordRequest,
 };
 
 // ============ 应用层 Provider 相关类型 ============
@@ -47,7 +55,7 @@ pub struct CreateAccountRequest {
 
 // ============ 应用层 Domain（包含 account_id）============
 
-/// 应用层 Domain 类型（包含 account_id）
+/// 应用层 Domain 类型（包含 `account_id`）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Domain {
     pub id: String,

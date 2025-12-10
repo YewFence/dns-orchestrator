@@ -84,18 +84,26 @@ impl<T> PaginatedResponse<T> {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ProviderType {
+    #[cfg(feature = "cloudflare")]
     Cloudflare,
+    #[cfg(feature = "aliyun")]
     Aliyun,
+    #[cfg(feature = "dnspod")]
     Dnspod,
+    #[cfg(feature = "huaweicloud")]
     Huaweicloud,
 }
 
 impl std::fmt::Display for ProviderType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            #[cfg(feature = "cloudflare")]
             Self::Cloudflare => write!(f, "cloudflare"),
+            #[cfg(feature = "aliyun")]
             Self::Aliyun => write!(f, "aliyun"),
+            #[cfg(feature = "dnspod")]
             Self::Dnspod => write!(f, "dnspod"),
+            #[cfg(feature = "huaweicloud")]
             Self::Huaweicloud => write!(f, "huaweicloud"),
         }
     }
@@ -268,21 +276,25 @@ impl std::error::Error for CredentialValidationError {}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "provider", content = "credentials")]
 pub enum ProviderCredentials {
+    #[cfg(feature = "cloudflare")]
     #[serde(rename = "cloudflare")]
     Cloudflare { api_token: String },
 
+    #[cfg(feature = "aliyun")]
     #[serde(rename = "aliyun")]
     Aliyun {
         access_key_id: String,
         access_key_secret: String,
     },
 
+    #[cfg(feature = "dnspod")]
     #[serde(rename = "dnspod")]
     Dnspod {
         secret_id: String,
         secret_key: String,
     },
 
+    #[cfg(feature = "huaweicloud")]
     #[serde(rename = "huaweicloud")]
     Huaweicloud {
         access_key_id: String,
@@ -297,9 +309,11 @@ impl ProviderCredentials {
         map: &std::collections::HashMap<String, String>,
     ) -> Result<Self, CredentialValidationError> {
         match provider {
+            #[cfg(feature = "cloudflare")]
             ProviderType::Cloudflare => Ok(Self::Cloudflare {
                 api_token: Self::get_required_field(provider, map, "apiToken", "API Token")?,
             }),
+            #[cfg(feature = "aliyun")]
             ProviderType::Aliyun => Ok(Self::Aliyun {
                 access_key_id: Self::get_required_field(
                     provider,
@@ -314,10 +328,12 @@ impl ProviderCredentials {
                     "Access Key Secret",
                 )?,
             }),
+            #[cfg(feature = "dnspod")]
             ProviderType::Dnspod => Ok(Self::Dnspod {
                 secret_id: Self::get_required_field(provider, map, "secretId", "Secret ID")?,
                 secret_key: Self::get_required_field(provider, map, "secretKey", "Secret Key")?,
             }),
+            #[cfg(feature = "huaweicloud")]
             ProviderType::Huaweicloud => Ok(Self::Huaweicloud {
                 access_key_id: Self::get_required_field(
                     provider,
@@ -331,6 +347,16 @@ impl ProviderCredentials {
                     "secretAccessKey",
                     "Secret Access Key",
                 )?,
+            }),
+            #[allow(unreachable_patterns)]
+            _ => Err(CredentialValidationError::InvalidFormat {
+                provider: provider.clone(),
+                field: "provider".to_string(),
+                label: "Provider".to_string(),
+                reason: format!(
+                    "Provider '{}' is not supported or its feature is not enabled.",
+                    provider
+                ),
             }),
         }
     }
@@ -360,9 +386,7 @@ impl ProviderCredentials {
     /// 转换为 HashMap（保存时用，保持存储格式兼容）
     pub fn to_map(&self) -> std::collections::HashMap<String, String> {
         match self {
-            Self::Cloudflare { api_token } => {
-                [("apiToken".to_string(), api_token.clone())].into()
-            }
+            Self::Cloudflare { api_token } => [("apiToken".to_string(), api_token.clone())].into(),
             Self::Aliyun {
                 access_key_id,
                 access_key_secret,

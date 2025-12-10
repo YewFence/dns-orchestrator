@@ -312,7 +312,12 @@ export const useDnsStore = create<DnsState>((set, get) => ({
         if (result.failedCount === 0) {
           toast.success(i18n.t("dns.batchDeleteSuccess", { count: result.successCount }))
         } else {
-          toast.warning(i18n.t("dns.batchDeletePartial", { success: result.successCount, failed: result.failedCount }))
+          toast.warning(
+            i18n.t("dns.batchDeletePartial", {
+              success: result.successCount,
+              failed: result.failedCount,
+            })
+          )
         }
         return result
       }

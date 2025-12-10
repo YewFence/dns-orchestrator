@@ -158,13 +158,12 @@ impl CloudflareProvider {
                 .map_error(
                     RawApiError::with_code(code, message),
                     ErrorContext::default(),
-                )
-                .into());
+                ));
         }
 
         cf_response
             .result
-            .ok_or_else(|| self.parse_error("响应中缺少 result 字段").into())
+            .ok_or_else(|| self.parse_error("响应中缺少 result 字段"))
     }
 
     /// 执行 GET 请求 (带分页)
@@ -222,8 +221,7 @@ impl CloudflareProvider {
                 .map_error(
                     RawApiError::with_code(code, message),
                     ErrorContext::default(),
-                )
-                .into());
+                ));
         }
 
         let total_count = cf_response.result_info.map_or(0, |i| i.total_count);
@@ -284,13 +282,12 @@ impl CloudflareProvider {
                 .map_error(
                     RawApiError::with_code(code, message),
                     ErrorContext::default(),
-                )
-                .into());
+                ));
         }
 
         cf_response
             .result
-            .ok_or_else(|| self.parse_error("响应中缺少 result 字段").into())
+            .ok_or_else(|| self.parse_error("响应中缺少 result 字段"))
     }
 
     /// 执行 PATCH 请求
@@ -345,13 +342,12 @@ impl CloudflareProvider {
                 .map_error(
                     RawApiError::with_code(code, message),
                     ErrorContext::default(),
-                )
-                .into());
+                ));
         }
 
         cf_response
             .result
-            .ok_or_else(|| self.parse_error("响应中缺少 result 字段").into())
+            .ok_or_else(|| self.parse_error("响应中缺少 result 字段"))
     }
 
     /// 执行 DELETE 请求
@@ -398,8 +394,7 @@ impl CloudflareProvider {
                 .map_error(
                     RawApiError::with_code(code, message),
                     ErrorContext::default(),
-                )
-                .into());
+                ));
         }
 
         Ok(())
@@ -469,8 +464,7 @@ impl CloudflareProvider {
                     provider: self.provider_name().to_string(),
                     param: "record_type".to_string(),
                     detail: format!("不支持的记录类型: {}", cf_record.record_type),
-                }
-                .into())
+                });
             }
         };
 
@@ -542,11 +536,10 @@ impl DnsProvider for CloudflareProvider {
         );
 
         // 添加搜索关键词（只搜索记录名称）
-        if let Some(ref keyword) = params.keyword {
-            if !keyword.is_empty() {
+        if let Some(ref keyword) = params.keyword
+            && !keyword.is_empty() {
                 url.push_str(&format!("&name.contains={}", urlencoding::encode(keyword)));
             }
-        }
 
         // 添加记录类型过滤
         if let Some(ref record_type) = params.record_type {
@@ -585,8 +578,7 @@ impl DnsProvider for CloudflareProvider {
                 .map_error(
                     RawApiError::with_code(code, message),
                     ErrorContext::default(),
-                )
-                .into());
+                ));
         }
 
         let total_count = cf_response.result_info.map_or(0, |i| i.total_count);

@@ -224,21 +224,21 @@ fn restore_accounts(state: &AppState) -> crate::error::Result<()> {
         };
 
         // 3.2 转换凭证格式
-        let typed_credentials =
-            match ProviderCredentials::from_map(&account.provider, &credentials) {
-                Ok(c) => c,
-                Err(e) => {
-                    log::warn!(
-                        "Failed to parse credentials for account {}: {}",
-                        account.id,
-                        e
-                    );
-                    account.status = Some(AccountStatus::Error);
-                    account.error = Some(format!("凭证格式错误: {e}"));
-                    failed_count += 1;
-                    continue;
-                }
-            };
+        let typed_credentials = match ProviderCredentials::from_map(&account.provider, &credentials)
+        {
+            Ok(c) => c,
+            Err(e) => {
+                log::warn!(
+                    "Failed to parse credentials for account {}: {}",
+                    account.id,
+                    e
+                );
+                account.status = Some(AccountStatus::Error);
+                account.error = Some(format!("凭证格式错误: {e}"));
+                failed_count += 1;
+                continue;
+            }
+        };
 
         // 3.3 重建 Provider 实例
         let provider = match create_provider(typed_credentials) {

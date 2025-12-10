@@ -336,23 +336,21 @@ impl AliyunProvider {
         log::debug!("Response Body: {response_text}");
 
         // 先检查是否有错误响应
-        if let Ok(error_response) = serde_json::from_str::<AliyunResponse<()>>(&response_text) {
-            if let (Some(code), Some(message)) = (error_response.code, error_response.message) {
+        if let Ok(error_response) = serde_json::from_str::<AliyunResponse<()>>(&response_text)
+            && let (Some(code), Some(message)) = (error_response.code, error_response.message) {
                 log::error!("API 错误: {code} - {message}");
                 return Err(self
                     .map_error(
                         RawApiError::with_code(&code, &message),
                         ErrorContext::default(),
-                    )
-                    .into());
+                    ));
             }
-        }
 
         // 解析成功响应
         serde_json::from_str(&response_text).map_err(|e| {
             log::error!("JSON 解析失败: {e}");
             log::error!("原始响应: {response_text}");
-            self.parse_error(e).into()
+            self.parse_error(e)
         })
     }
 
@@ -382,8 +380,7 @@ impl AliyunProvider {
                 provider: "aliyun".to_string(),
                 param: "record_type".to_string(),
                 detail: format!("不支持的记录类型: {record_type}"),
-            }
-            .into()),
+            }),
         }
     }
 

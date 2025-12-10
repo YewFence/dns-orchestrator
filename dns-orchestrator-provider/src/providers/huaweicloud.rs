@@ -252,17 +252,15 @@ impl HuaweicloudProvider {
                             error.error_msg.unwrap_or_default(),
                         ),
                         ErrorContext::default(),
-                    )
-                    .into());
+                    ));
             }
             return Err(self
-                .unknown_error(RawApiError::new(format!("HTTP {status}: {response_text}")))
-                .into());
+                .unknown_error(RawApiError::new(format!("HTTP {status}: {response_text}"))));
         }
 
         serde_json::from_str(&response_text).map_err(|e| {
             log::error!("JSON 解析失败: {e}");
-            self.parse_error(e).into()
+            self.parse_error(e)
         })
     }
 
@@ -272,10 +270,11 @@ impl HuaweicloudProvider {
         path: &str,
         body: &B,
     ) -> Result<T> {
-        let payload = serde_json::to_string(body).map_err(|e| ProviderError::SerializationError {
-            provider: self.provider_name().to_string(),
-            detail: e.to_string(),
-        })?;
+        let payload =
+            serde_json::to_string(body).map_err(|e| ProviderError::SerializationError {
+                provider: self.provider_name().to_string(),
+                detail: e.to_string(),
+            })?;
 
         let now = Utc::now();
         let timestamp = now.format("%Y%m%dT%H%M%SZ").to_string();
@@ -320,17 +319,15 @@ impl HuaweicloudProvider {
                             error.error_msg.unwrap_or_default(),
                         ),
                         ErrorContext::default(),
-                    )
-                    .into());
+                    ));
             }
             return Err(self
-                .unknown_error(RawApiError::new(format!("HTTP {status}: {response_text}")))
-                .into());
+                .unknown_error(RawApiError::new(format!("HTTP {status}: {response_text}"))));
         }
 
         serde_json::from_str(&response_text).map_err(|e| {
             log::error!("JSON 解析失败: {e}");
-            self.parse_error(e).into()
+            self.parse_error(e)
         })
     }
 
@@ -340,10 +337,11 @@ impl HuaweicloudProvider {
         path: &str,
         body: &B,
     ) -> Result<T> {
-        let payload = serde_json::to_string(body).map_err(|e| ProviderError::SerializationError {
-            provider: self.provider_name().to_string(),
-            detail: e.to_string(),
-        })?;
+        let payload =
+            serde_json::to_string(body).map_err(|e| ProviderError::SerializationError {
+                provider: self.provider_name().to_string(),
+                detail: e.to_string(),
+            })?;
 
         let now = Utc::now();
         let timestamp = now.format("%Y%m%dT%H%M%SZ").to_string();
@@ -388,17 +386,15 @@ impl HuaweicloudProvider {
                             error.error_msg.unwrap_or_default(),
                         ),
                         ErrorContext::default(),
-                    )
-                    .into());
+                    ));
             }
             return Err(self
-                .unknown_error(RawApiError::new(format!("HTTP {status}: {response_text}")))
-                .into());
+                .unknown_error(RawApiError::new(format!("HTTP {status}: {response_text}"))));
         }
 
         serde_json::from_str(&response_text).map_err(|e| {
             log::error!("JSON 解析失败: {e}");
-            self.parse_error(e).into()
+            self.parse_error(e)
         })
     }
 
@@ -443,12 +439,10 @@ impl HuaweicloudProvider {
                             error.error_msg.unwrap_or_default(),
                         ),
                         ErrorContext::default(),
-                    )
-                    .into());
+                    ));
             }
             return Err(self
-                .unknown_error(RawApiError::new(format!("HTTP {status}: {response_text}")))
-                .into());
+                .unknown_error(RawApiError::new(format!("HTTP {status}: {response_text}"))));
         }
 
         Ok(())
@@ -487,8 +481,7 @@ impl HuaweicloudProvider {
                 provider: "huaweicloud".to_string(),
                 param: "record_type".to_string(),
                 detail: format!("不支持的记录类型: {record_type}"),
-            }
-            .into()),
+            }),
         }
     }
 
@@ -610,11 +603,10 @@ impl DnsProvider for HuaweicloudProvider {
         let mut query = format!("offset={offset}&limit={limit}");
 
         // 添加搜索关键词（华为云支持 name 参数模糊匹配）
-        if let Some(ref keyword) = params.keyword {
-            if !keyword.is_empty() {
+        if let Some(ref keyword) = params.keyword
+            && !keyword.is_empty() {
                 query.push_str(&format!("&name={}", urlencoding::encode(keyword)));
             }
-        }
 
         // 添加记录类型过滤
         if let Some(ref record_type) = params.record_type {
