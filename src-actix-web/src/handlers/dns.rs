@@ -97,10 +97,10 @@ pub struct DnsRecordInfo {
 #[serde(rename_all = "camelCase")]
 pub struct PaginatedResponse<T> {
     pub items: Vec<T>,
-    pub total: u32,
+    pub total_count: u32,
     pub page: u32,
     pub page_size: u32,
-    pub total_pages: u32,
+    pub has_more: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -135,10 +135,10 @@ pub async fn list_dns_records(
 
     Ok(PaginatedResponse {
         items: result.items.into_iter().map(convert_record).collect(),
-        total: result.total,
+        total_count: result.total_count,
         page: result.page,
         page_size: result.page_size,
-        total_pages: result.total_pages,
+        has_more: result.has_more,
     })
 }
 
@@ -160,8 +160,8 @@ pub async fn create_dns_record(
         domain_id: args.request.domain_id,
         name: args.request.name,
         record_type,
-        content: args.request.content,
-        ttl: args.request.ttl,
+        value: args.request.content,
+        ttl: args.request.ttl.unwrap_or(600),
         priority: args.request.priority,
         proxied: args.request.proxied,
     };
@@ -181,18 +181,27 @@ pub async fn update_dns_record(
         .await
         .ok_or_else(|| ApiError::AccountNotFound(args.account_id.clone()))?;
 
-    let record_type = args
-        .request
-        .record_type
+    // 必须提供 record_type 和 name 和 content
+    let record_type_str = args.request.record_type
         .as_ref()
-        .and_then(|t| parse_record_type(t));
+        .ok_or_else(|| ApiError::BadRequest("缺少 record_type 字段".to_string()))?;
+    let record_type = parse_record_type(record_type_str)
+        .ok_or_else(|| ApiError::BadRequest(format!("无效的记录类型: {}", record_type_str)))?;
+
+    let name = args.request.name
+        .as_ref()
+        .ok_or_else(|| ApiError::BadRequest("缺少 name 字段".to_string()))?;
+
+    let value = args.request.content
+        .as_ref()
+        .ok_or_else(|| ApiError::BadRequest("缺少 content 字段".to_string()))?;
 
     let req = dns_orchestrator_provider::UpdateDnsRecordRequest {
         domain_id: args.request.domain_id,
-        name: args.request.name,
+        name: name.clone(),
         record_type,
-        content: args.request.content,
-        ttl: args.request.ttl,
+        value: value.clone(),
+        ttl: args.request.ttl.unwrap_or(600),
         priority: args.request.priority,
         proxied: args.request.proxied,
     };
@@ -256,13 +265,13 @@ fn parse_record_type(s: &str) -> Option<dns_orchestrator_provider::DnsRecordType
     use dns_orchestrator_provider::DnsRecordType;
     match s.to_uppercase().as_str() {
         "A" => Some(DnsRecordType::A),
-        "AAAA" => Some(DnsRecordType::AAAA),
-        "CNAME" => Some(DnsRecordType::CNAME),
-        "MX" => Some(DnsRecordType::MX),
-        "TXT" => Some(DnsRecordType::TXT),
-        "NS" => Some(DnsRecordType::NS),
-        "SRV" => Some(DnsRecordType::SRV),
-        "CAA" => Some(DnsRecordType::CAA),
+        "AAAA" => Some(DnsRecordType::Aaaa),
+        "CNAME" => Some(DnsRecordType::Cname),
+        "MX" => Some(DnsRecordType::Mx),
+        "TXT" => Some(DnsRecordType::Txt),
+        "NS" => Some(DnsRecordType::Ns),
+        "SRV" => Some(DnsRecordType::Srv),
+        "CAA" => Some(DnsRecordType::Caa),
         _ => None,
     }
 }
@@ -272,7 +281,7 @@ fn convert_record(record: dns_orchestrator_provider::DnsRecord) -> DnsRecordInfo
         id: record.id,
         name: record.name,
         record_type: format!("{:?}", record.record_type),
-        content: record.content,
+        content: record.value,
         ttl: record.ttl,
         priority: record.priority,
         proxied: record.proxied,

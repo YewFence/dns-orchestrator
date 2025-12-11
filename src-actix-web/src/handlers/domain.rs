@@ -37,10 +37,10 @@ pub struct DomainInfo {
 #[serde(rename_all = "camelCase")]
 pub struct PaginatedResponse<T> {
     pub items: Vec<T>,
-    pub total: u32,
+    pub total_count: u32,
     pub page: u32,
     pub page_size: u32,
-    pub total_pages: u32,
+    pub has_more: bool,
 }
 
 // ============ Handler 实现 ============
@@ -74,10 +74,10 @@ pub async fn list_domains(
                 record_count: d.record_count,
             })
             .collect(),
-        total: result.total,
+        total_count: result.total_count,
         page: result.page,
         page_size: result.page_size,
-        total_pages: result.total_pages,
+        has_more: result.has_more,
     })
 }
 
