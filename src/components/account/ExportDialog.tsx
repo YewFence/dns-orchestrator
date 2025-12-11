@@ -1,5 +1,3 @@
-import { save } from "@tauri-apps/plugin-dialog"
-import { writeTextFile } from "@tauri-apps/plugin-fs"
 import { Download, Loader2, Lock } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -20,6 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Switch } from "@/components/ui/switch"
 import { extractErrorMessage, getErrorMessage } from "@/lib/error"
 import { accountService } from "@/services"
+import { saveFile } from "@/services/file.service"
 import type { Account, ExportAccountsRequest } from "@/types"
 import { getProviderName, ProviderIcon } from "./ProviderIcon"
 
@@ -104,13 +103,11 @@ export function ExportDialog({ open, onOpenChange, accounts }: ExportDialogProps
         return
       }
 
-      const filePath = await save({
-        defaultPath: response.data.suggestedFilename,
+      const saved = await saveFile(response.data.content, {
+        defaultFilename: response.data.suggestedFilename,
         filters: [{ name: "DNS Orchestrator Backup", extensions: ["dnso"] }],
       })
-      if (!filePath) return
-
-      await writeTextFile(filePath, response.data.content)
+      if (!saved) return
       toast.success(t("export.success", { count: selectedIds.size }))
       onOpenChange(false)
       resetForm()

@@ -1,4 +1,5 @@
-import { platform } from "@tauri-apps/plugin-os"
+// @ts-expect-error - 路径由 Vite alias 动态解析
+import { platform } from "#platform-impl"
 
 // 静态环境变量（编译时确定，不变）
 export const ENV = {
@@ -14,7 +15,7 @@ export function getPlatform(): string {
   if (cachedPlatform === null) {
     cachedPlatform = platform()
   }
-  return cachedPlatform
+  return cachedPlatform as string
 }
 
 export function isAndroid(): boolean {

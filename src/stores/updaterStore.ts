@@ -1,11 +1,10 @@
-import { Channel, invoke } from "@tauri-apps/api/core"
-import { relaunch } from "@tauri-apps/plugin-process"
-import { check, type Update } from "@tauri-apps/plugin-updater"
 import { create } from "zustand"
 import { ENV, getPlatform } from "@/lib/env"
 import { logger } from "@/lib/logger"
 
 const SKIPPED_VERSION_KEY = "dns-orchestrator-skipped-version"
+const GITHUB_RELEASES_API =
+  "https://api.github.com/repos/AptS-1547/dns-orchestrator/releases/latest"
 
 // 获取被跳过的版本
 const getSkippedVersion = (): string | null => {
@@ -24,24 +23,93 @@ const clearSkippedVersion = (): void => {
 
 const MAX_RETRIES = 3
 
-// Android 更新信息
+// ============ 更新信息类型 ============
+
+/** Web 端更新信息（来自 GitHub Release） */
+interface WebUpdate {
+  version: string
+  notes: string
+  url: string // GitHub Release 页面 URL
+}
+
+/** 桌面端更新信息（来自 tauri-plugin-updater） */
+interface DesktopUpdate {
+  version: string
+  body?: string
+  downloadAndInstall: (onProgress?: (event: DownloadEvent) => void) => Promise<void>
+}
+
+/** Android 更新信息 */
 interface AndroidUpdate {
   version: string
   notes: string
-  url: string
+  url: string // APK 下载 URL
 }
 
-// 下载进度事件
-interface DownloadProgress {
+/** 下载进度事件 */
+interface DownloadEvent {
   event: "Started" | "Progress" | "Finished"
-  data: {
-    content_length?: number
-    chunk_length?: number
+  data?: {
+    contentLength?: number
+    chunkLength?: number
   }
 }
 
 // 统一的更新信息类型
-type UpdateInfo = Update | AndroidUpdate
+type UpdateInfo = WebUpdate | DesktopUpdate | AndroidUpdate
+
+// ============ 类型判断 ============
+
+const isWebUpdate = (update: UpdateInfo): update is WebUpdate => {
+  return "url" in update && !("downloadAndInstall" in update) && __PLATFORM__ === "web"
+}
+
+const isAndroidUpdate = (update: UpdateInfo): update is AndroidUpdate => {
+  return "url" in update && !("downloadAndInstall" in update) && __PLATFORM__ !== "web"
+}
+
+const isDesktopUpdate = (update: UpdateInfo): update is DesktopUpdate => {
+  return "downloadAndInstall" in update
+}
+
+// ============ 更新说明获取 ============
+
+export const getUpdateNotes = (update: UpdateInfo | null): string => {
+  if (!update) return ""
+  if ("notes" in update) return update.notes || ""
+  if ("body" in update) return update.body || ""
+  return ""
+}
+
+// ============ GitHub Release API ============
+
+async function checkGitHubRelease(): Promise<WebUpdate | null> {
+  try {
+    const response = await fetch(GITHUB_RELEASES_API)
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    const latestVersion = data.tag_name?.replace(/^v/, "") || ""
+
+    // 比较版本
+    if (latestVersion && latestVersion !== ENV.appVersion) {
+      return {
+        version: latestVersion,
+        notes: data.body || "",
+        url: data.html_url || "",
+      }
+    }
+
+    return null
+  } catch (error) {
+    logger.error("Failed to check GitHub release:", error)
+    throw error
+  }
+}
+
+// ============ Store 定义 ============
 
 interface UpdaterState {
   checking: boolean
@@ -62,20 +130,6 @@ interface UpdaterState {
   setShowUpdateDialog: (show: boolean) => void
 }
 
-// 判断是否为 Android 更新
-const isAndroidUpdate = (update: UpdateInfo): update is AndroidUpdate => {
-  return "url" in update && !("downloadAndInstall" in update)
-}
-
-// 统一获取更新说明
-export const getUpdateNotes = (update: UpdateInfo | null): string => {
-  if (!update) return ""
-  if (isAndroidUpdate(update)) {
-    return update.notes || ""
-  }
-  return update.body || ""
-}
-
 export const useUpdaterStore = create<UpdaterState>((set, get) => ({
   checking: false,
   downloading: false,
@@ -91,20 +145,38 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
   setShowUpdateDialog: (show: boolean) => set({ showUpdateDialog: show }),
 
   checkForUpdates: async () => {
-    // Web 端不支持更新
-    if (__PLATFORM__ === "web") {
-      set({ isPlatformUnsupported: true })
-      return null
-    }
-
     set({ checking: true, error: null, upToDate: false, isPlatformUnsupported: false })
+
     try {
+      // Web 端：使用 GitHub Release API
+      if (__PLATFORM__ === "web") {
+        logger.debug("Checking for Web updates via GitHub...")
+        const update = await checkGitHubRelease()
+
+        if (update) {
+          const skippedVersion = getSkippedVersion()
+          if (skippedVersion === update.version) {
+            logger.debug("Version is skipped")
+            set({ available: null, checking: false, upToDate: true })
+            return null
+          }
+          logger.debug("Update available:", update.version)
+          set({ available: update, checking: false, upToDate: false, showUpdateDialog: true })
+          return update
+        }
+
+        logger.debug("No update available")
+        set({ available: null, checking: false, upToDate: true })
+        return null
+      }
+
       const currentPlatform = getPlatform()
       logger.debug("Platform:", currentPlatform)
 
+      // Android 端
       if (currentPlatform === "android") {
-        // Android 平台：调用自定义命令
         logger.debug("Checking for Android updates...")
+        const { invoke } = await import("@tauri-apps/api/core")
         const update = await invoke<AndroidUpdate | null>("check_android_update", {
           currentVersion: ENV.appVersion,
         })
@@ -120,35 +192,42 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
           logger.debug("Update available:", update.version)
           set({ available: update, checking: false, upToDate: false, showUpdateDialog: true })
           return update
-        } else {
-          logger.debug("No update available")
+        }
+
+        logger.debug("No update available")
+        set({ available: null, checking: false, upToDate: true })
+        return null
+      }
+
+      // 桌面端：使用 tauri-plugin-updater
+      logger.debug("Checking for desktop updates...")
+      const { check } = await import("@tauri-apps/plugin-updater")
+      const update = await check()
+      logger.debug("Check result:", update)
+
+      if (update) {
+        const skippedVersion = getSkippedVersion()
+        logger.debug("Skipped version:", skippedVersion)
+        logger.debug("Update version:", update.version)
+
+        if (skippedVersion === update.version) {
+          logger.debug("Version is skipped, treating as no update")
           set({ available: null, checking: false, upToDate: true })
           return null
         }
+        logger.debug("Update available:", update.version)
+        // 使用类型断言，因为 tauri-plugin-updater 的 Update 类型兼容我们的 DesktopUpdate
+        set({
+          available: update as unknown as DesktopUpdate,
+          checking: false,
+          upToDate: false,
+          showUpdateDialog: true,
+        })
       } else {
-        // 桌面平台：使用 tauri-plugin-updater
-        logger.debug("Checking for desktop updates...")
-        const update = await check()
-        logger.debug("Check result:", update)
-
-        if (update) {
-          const skippedVersion = getSkippedVersion()
-          logger.debug("Skipped version:", skippedVersion)
-          logger.debug("Update version:", update.version)
-
-          if (skippedVersion === update.version) {
-            logger.debug("Version is skipped, treating as no update")
-            set({ available: null, checking: false, upToDate: true })
-            return null
-          }
-          logger.debug("Update available:", update.version)
-          set({ available: update, checking: false, upToDate: false, showUpdateDialog: true })
-        } else {
-          logger.debug("No update available")
-          set({ available: null, checking: false, upToDate: true })
-        }
-        return update
+        logger.debug("No update available")
+        set({ available: null, checking: false, upToDate: true })
       }
+      return update as unknown as UpdateInfo | null
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e)
       logger.error("Check failed:", errorMessage, e)
@@ -170,12 +249,21 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     const { available } = get()
     if (!available) return
 
+    // Web 端不支持自动下载安装
+    if (__PLATFORM__ === "web") {
+      logger.warn("Web platform does not support auto download and install")
+      return
+    }
+
     set({ downloading: true, progress: 0, error: null, retryCount: 0 })
 
     const currentPlatform = getPlatform()
 
+    // Android 端
     if (currentPlatform === "android" && isAndroidUpdate(available)) {
-      // Android 平台：下载 APK 并安装
+      const { invoke } = await import("@tauri-apps/api/core")
+      const { Channel } = await import("@tauri-apps/api/core")
+
       let lastError: Error | null = null
       let apkPath: string | null = null
 
@@ -196,7 +284,10 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
           contentLength = 0
 
           // 创建进度回调 Channel
-          const onProgress = new Channel<DownloadProgress>()
+          const onProgress = new Channel<{
+            event: "Started" | "Progress" | "Finished"
+            data: { content_length?: number; chunk_length?: number }
+          }>()
           onProgress.onmessage = (event) => {
             if (event.event === "Started") {
               contentLength = event.data.content_length ?? 0
@@ -222,28 +313,9 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
           break // 下载成功，跳出重试循环
         } catch (e) {
           lastError = e instanceof Error ? e : new Error(String(e))
-
-          // 详细错误日志
-          logger.error(`Download attempt ${attempt + 1}/${MAX_RETRIES} failed:`, {
-            error: lastError.message,
-            stack: lastError.stack,
-            url: available.url,
-            downloaded: `${downloaded} / ${contentLength} bytes`,
-            progress:
-              contentLength > 0 ? `${Math.round((downloaded / contentLength) * 100)}%` : "unknown",
-            errorType: lastError.constructor.name,
-          })
+          logger.error(`Download attempt ${attempt + 1}/${MAX_RETRIES} failed:`, lastError.message)
 
           if (attempt === MAX_RETRIES - 1) {
-            logger.error("All download retry attempts failed", {
-              totalAttempts: MAX_RETRIES,
-              lastError: {
-                message: lastError.message,
-                stack: lastError.stack,
-              },
-              url: available.url,
-              version: available.version,
-            })
             const errorMessage = lastError?.message || "Download failed"
             set({ error: errorMessage, downloading: false, retryCount: MAX_RETRIES })
             throw lastError || new Error(errorMessage)
@@ -260,19 +332,13 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
           set({ downloading: false })
         } catch (e) {
           const installError = e instanceof Error ? e : new Error(String(e))
-          logger.error("Install failed:", {
-            error: installError.message,
-            stack: installError.stack,
-            apkPath,
-            errorType: installError.constructor.name,
-          })
-          // 安装失败不重新下载，只提示错误
+          logger.error("Install failed:", installError.message)
           set({ error: installError.message, downloading: false })
           throw installError
         }
       }
-    } else if (!isAndroidUpdate(available)) {
-      // 桌面平台：使用 tauri-plugin-updater
+    } else if (isDesktopUpdate(available)) {
+      // 桌面端：使用 tauri-plugin-updater
       const attemptDownload = async (): Promise<void> => {
         let downloaded = 0
         let contentLength = 0
@@ -281,11 +347,11 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
         await available.downloadAndInstall((event) => {
           switch (event.event) {
             case "Started":
-              contentLength = event.data.contentLength ?? 0
+              contentLength = event.data?.contentLength ?? 0
               logger.debug("Download started, size:", contentLength)
               break
             case "Progress":
-              downloaded += event.data.chunkLength
+              downloaded += event.data?.chunkLength ?? 0
               if (contentLength > 0) {
                 const progress = Math.round((downloaded / contentLength) * 100)
                 set({ progress })
@@ -314,6 +380,8 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
 
           logger.debug("Install complete, relaunching...")
           clearSkippedVersion()
+
+          const { relaunch } = await import("@tauri-apps/plugin-process")
           await relaunch()
           return
         } catch (e) {
@@ -359,3 +427,6 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     set({ upToDate: false })
   },
 }))
+
+// 导出类型判断函数供 update-dialog 使用
+export { isWebUpdate }

@@ -9,9 +9,9 @@
 
 // Re-export types from transport layer
 export type {
-  AndroidUpdate,
   CommandMap,
-  DownloadProgress,
   NoArgsCommands,
   WithArgsCommands,
 } from "@/services/transport/types"
+
+// Android 专用类型请从 @/services/transport/android-updater.types 导入

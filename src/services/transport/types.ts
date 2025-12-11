@@ -3,7 +3,6 @@
  * 抽象 Tauri IPC 和 HTTP 调用的统一接口
  */
 
-import type { Channel } from "@tauri-apps/api/core"
 import type {
   Account,
   ApiResponse,
@@ -26,24 +25,6 @@ import type {
   UpdateDnsRecordRequest,
   WhoisResult,
 } from "@/types"
-
-// ============ Android 更新相关类型 ============
-
-/** Android 更新信息 */
-export interface AndroidUpdate {
-  version: string
-  notes: string
-  url: string
-}
-
-/** 下载进度事件 */
-export interface DownloadProgress {
-  event: "Started" | "Progress" | "Finished"
-  data: {
-    content_length?: number
-    chunk_length?: number
-  }
-}
 
 // ============ Command 类型映射 ============
 
@@ -134,20 +115,6 @@ export interface CommandMap {
   ssl_check: {
     args: { domain: string; port?: number }
     result: ApiResponse<SslCheckResult>
-  }
-
-  // Android updater commands
-  check_android_update: {
-    args: { currentVersion: string }
-    result: AndroidUpdate | null
-  }
-  download_apk: {
-    args: { url: string; onProgress: Channel<DownloadProgress> }
-    result: string
-  }
-  install_apk: {
-    args: { path: string }
-    result: undefined
   }
 }
 

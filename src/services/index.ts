@@ -9,8 +9,8 @@ export { toolboxService } from "./toolbox.service"
 
 // Transport 相关类型导出
 export type {
-  AndroidUpdate,
   CommandMap,
-  DownloadProgress,
   ITransport,
 } from "./transport"
+
+// Android 专用类型请从 @/services/transport/android-updater.types 导入

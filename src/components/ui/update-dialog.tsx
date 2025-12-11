@@ -1,7 +1,8 @@
-import { ArrowRight, Download, RefreshCw } from "lucide-react"
+import { ArrowRight, Download, ExternalLink, RefreshCw } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { getUpdateNotes, useUpdaterStore } from "@/stores/updaterStore"
+import { openExternal } from "@/lib/open-external"
+import { getUpdateNotes, isWebUpdate, useUpdaterStore } from "@/stores/updaterStore"
 import { Button } from "./button"
 import {
   Dialog,
@@ -26,8 +27,17 @@ export function UpdateDialog({ open, onOpenChange }: UpdateDialogProps) {
   if (!available) return null
 
   const notes = getUpdateNotes(available)
+  const isWeb = isWebUpdate(available)
 
   const handleDownload = async () => {
+    // Web 端：跳转到 GitHub Release 页面
+    if (isWeb) {
+      await openExternal(available.url)
+      onOpenChange(false)
+      return
+    }
+
+    // 其他平台：下载安装
     try {
       await downloadAndInstall()
     } catch {
@@ -88,8 +98,17 @@ export function UpdateDialog({ open, onOpenChange }: UpdateDialogProps) {
                 </button>
               </div>
               <Button size="sm" onClick={handleDownload} className="gap-1.5">
-                <Download className="h-4 w-4" />
-                {t("settings.updateNow")}
+                {isWeb ? (
+                  <>
+                    <ExternalLink className="h-4 w-4" />
+                    {t("settings.goToDownload")}
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    {t("settings.updateNow")}
+                  </>
+                )}
               </Button>
             </>
           )}

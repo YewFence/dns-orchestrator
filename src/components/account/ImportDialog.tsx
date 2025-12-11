@@ -1,5 +1,3 @@
-import { open as openFileDialog } from "@tauri-apps/plugin-dialog"
-import { readTextFile } from "@tauri-apps/plugin-fs"
 import { AlertTriangle, FileText, Loader2, Lock, Upload } from "lucide-react"
 import { useCallback, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -19,6 +17,7 @@ import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { extractErrorMessage, getErrorMessage } from "@/lib/error"
 import { accountService } from "@/services"
+import { openFile } from "@/services/file.service"
 import type { ImportAccountsRequest, ImportPreview } from "@/types"
 import { getProviderName, ProviderIcon } from "./ProviderIcon"
 
@@ -50,20 +49,18 @@ export function ImportDialog({ open, onOpenChange, onImportSuccess }: ImportDial
 
   const handleSelectFile = async () => {
     try {
-      const filePath = await openFileDialog({
-        multiple: false,
+      const result = await openFile({
         filters: [{ name: "DNS Orchestrator Backup", extensions: ["dnso"] }],
       })
 
-      if (!filePath) return
+      if (!result) return
 
       setIsLoading(true)
-      const content = await readTextFile(filePath as string)
-      setFileContent(content)
-      setFileName((filePath as string).split("/").pop() || "file.json")
+      setFileContent(result.content)
+      setFileName(result.filename)
 
       // 尝试预览（不带密码）
-      const response = await accountService.previewImport(content, null)
+      const response = await accountService.previewImport(result.content, null)
 
       if (response.success && response.data) {
         setPreview(response.data)

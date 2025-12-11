@@ -230,6 +230,7 @@ export default {
     updateAvailableDesc: "Version {{version}} is available",
     noUpdate: "Up to date",
     updateNow: "Update Now",
+    goToDownload: "Go to Download",
     updateFailed: "Update check failed",
     updateCheckError: "Error checking for updates",
     updateCheckErrorDesc: "{{error}}",

@@ -27,6 +27,13 @@ export default defineConfig(async () => ({
           ? "./src/services/transport/http.transport.ts"
           : "./src/services/transport/tauri.transport.ts"
       ),
+      // 编译时切换平台检测实现
+      "#platform-impl": path.resolve(
+        __dirname,
+        platform === "web"
+          ? "./src/lib/platform.web.ts"
+          : "./src/lib/platform.tauri.ts"
+      ),
       "@": path.resolve(__dirname, "./src"),
     },
   },

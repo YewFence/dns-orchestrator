@@ -226,6 +226,7 @@ export default {
     updateAvailableDesc: "新版本 {{version}} 可用",
     noUpdate: "已是最新版本",
     updateNow: "立即更新",
+    goToDownload: "前往下载",
     updateFailed: "更新检查失败",
     updateCheckError: "检查更新时出错",
     updateCheckErrorDesc: "{{error}}",

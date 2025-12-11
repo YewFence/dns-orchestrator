@@ -1,4 +1,3 @@
-import { openUrl } from "@tauri-apps/plugin-opener"
 import {
   ArrowLeft,
   Check,
@@ -22,6 +21,7 @@ import { EXTERNAL_LINKS } from "@/constants"
 import { type LanguageCode, supportedLanguages } from "@/i18n"
 import { ENV } from "@/lib/env"
 import { logger } from "@/lib/logger"
+import { openExternal } from "@/lib/open-external"
 import { cn } from "@/lib/utils"
 import { useSettingsStore } from "@/stores/settingsStore"
 import { getUpdateNotes, useUpdaterStore } from "@/stores/updaterStore"
@@ -76,7 +76,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
                 label: "GitHub Releases",
                 onClick: async () => {
                   try {
-                    await openUrl(EXTERNAL_LINKS.GITHUB_RELEASES)
+                    await openExternal(EXTERNAL_LINKS.GITHUB_RELEASES)
                   } catch (err) {
                     logger.error("Failed to open URL:", err)
                   }
@@ -238,7 +238,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => openUrl(EXTERNAL_LINKS.GITHUB_REPO)}
+                  onClick={() => openExternal(EXTERNAL_LINKS.GITHUB_REPO)}
                 >
                   <Github className="h-4 w-4" />
                 </Button>

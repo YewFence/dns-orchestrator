@@ -7,9 +7,7 @@
 // @ts-expect-error - 路径由 Vite alias 动态解析
 export { transport } from "#transport-impl"
 export type {
-  AndroidUpdate,
   CommandMap,
-  DownloadProgress,
   ITransport,
   NoArgsCommands,
   WithArgsCommands,
