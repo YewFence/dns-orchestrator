@@ -11,6 +11,7 @@ mod state;
 
 use actix_cors::Cors;
 use actix_web::{middleware, web, App, HttpServer};
+use migration::MigratorTrait;
 use sea_orm::{Database, DbErr};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
