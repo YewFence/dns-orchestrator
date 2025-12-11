@@ -204,6 +204,7 @@ export const useDnsStore = create<DnsState>((set, get) => ({
   },
 
   updateRecord: async (accountId, recordId, request) => {
+    set({ isLoading: true, error: null })
     try {
       const response = await dnsService.updateRecord(accountId, recordId, request)
       if (response.success && response.data) {
@@ -218,6 +219,8 @@ export const useDnsStore = create<DnsState>((set, get) => ({
     } catch (err) {
       toast.error(extractErrorMessage(err))
       return false
+    } finally {
+      set({ isLoading: false })
     }
   },
 

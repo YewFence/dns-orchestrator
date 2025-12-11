@@ -103,7 +103,7 @@ export function HomePage() {
 
   return (
     <ScrollArea className="flex-1">
-      <div className="p-4 sm:p-6">
+      <div className="scroll-pb-safe p-4 sm:p-6">
         {/* 欢迎 */}
         <div className="mb-6">
           <h1 className="font-semibold text-2xl">{t("home.welcome")}</h1>

@@ -39,7 +39,7 @@ export function AppLayout({
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0" hideClose>
+            <SheetContent side="left" className="w-72 px-0 bg-sidebar" hideClose>
               <Sidebar
                 currentView={currentView}
                 onNavigate={(view) => {
@@ -52,7 +52,7 @@ export function AppLayout({
             </SheetContent>
           </Sheet>
           <Globe className="h-5 w-5 text-primary" />
-          <h1 className="font-semibold">{t("common.appName")}</h1>
+          <h1 className="font-semibold text-xl">{t("common.appName")}</h1>
         </header>
       )}
 

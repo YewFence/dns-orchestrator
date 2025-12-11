@@ -194,7 +194,7 @@ export function DnsRecordForm({
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
               {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={isLoading}>

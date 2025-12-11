@@ -1,5 +1,4 @@
 import {
-  ArrowLeft,
   Check,
   Download,
   Github,
@@ -12,8 +11,8 @@ import {
 } from "lucide-react"
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
+import { MobileMenuTrigger } from "@/components/layout/MobileMenuTrigger"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -29,7 +28,6 @@ import { getUpdateNotes, useUpdaterStore } from "@/stores/updaterStore"
 
 export function SettingsPage() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const { theme, language, debugMode, setTheme, setLanguage, setDebugMode } = useSettingsStore()
   const {
     checking,
@@ -60,6 +58,7 @@ export function SettingsPage() {
 
   // 手动检查更新处理
   const handleCheckUpdates = async () => {
+    if (checking) return
     try {
       const update = await checkForUpdates()
       // 如果有错误（平台不支持），显示错误提示
@@ -99,6 +98,7 @@ export function SettingsPage() {
 
   // 下载并安装处理
   const handleDownloadAndInstall = async () => {
+    if (downloading) return
     try {
       await downloadAndInstall()
       // 下载完成后应用会重启
@@ -120,15 +120,15 @@ export function SettingsPage() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 border-b bg-background px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <div className="md:hidden">
+          <MobileMenuTrigger />
+        </div>
         <h2 className="font-semibold text-xl">{t("settings.title")}</h2>
       </div>
 
       {/* Content */}
       <ScrollArea className="min-h-0 flex-1">
-        <div className="mx-auto max-w-3xl space-y-6 p-4 sm:space-y-10 sm:p-8">
+        <div className="scroll-pb-safe mx-auto max-w-3xl space-y-6 p-4 sm:space-y-10 sm:p-8">
           {/* 主题设置 */}
           <div className="space-y-3 sm:space-y-5">
             <div>

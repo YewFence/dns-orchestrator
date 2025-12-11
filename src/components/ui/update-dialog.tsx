@@ -30,6 +30,9 @@ export function UpdateDialog({ open, onOpenChange }: UpdateDialogProps) {
   const isWeb = isWebUpdate(available)
 
   const handleDownload = async () => {
+    // 防止重复点击
+    if (downloading) return
+
     // Web 端：跳转到 GitHub Release 页面
     if (isWeb) {
       await openExternal(available.url)

@@ -1,5 +1,4 @@
 import {
-  ArrowLeft,
   Download,
   Globe,
   Loader2,
@@ -12,11 +11,11 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
 import { AccountForm } from "@/components/account/AccountForm"
 import { ExportDialog } from "@/components/account/ExportDialog"
 import { ImportDialog } from "@/components/account/ImportDialog"
 import { getProviderName, ProviderIcon } from "@/components/account/ProviderIcon"
+import { MobileMenuTrigger } from "@/components/layout/MobileMenuTrigger"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,7 +41,6 @@ import type { Account } from "@/types"
 
 export function AccountsPage() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const {
     accounts,
     isLoading,
@@ -71,9 +69,9 @@ export function AccountsPage() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-3 border-b bg-background px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <div className="md:hidden">
+          <MobileMenuTrigger />
+        </div>
         <div className="flex items-center gap-2">
           <Users className="h-5 w-5 text-primary" />
           <h2 className="font-semibold text-xl">{t("accounts.title")}</h2>
@@ -132,7 +130,7 @@ export function AccountsPage() {
 
       {/* 账户列表 */}
       <ScrollArea className="min-h-0 flex-1">
-        <div className="p-4 sm:p-6">
+        <div className="scroll-pb-safe p-4 sm:p-6">
           {isLoading ? (
             <div className="space-y-3">
               <Skeleton className="h-20 w-full rounded-lg" />

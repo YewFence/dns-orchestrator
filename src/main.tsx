@@ -1,13 +1,18 @@
 import React from "react"
 import ReactDOM from "react-dom/client"
 import { STORAGE_KEYS } from "@/constants"
-import { initEnv } from "@/lib/env"
+import { initEnv, isAndroid, isIOS } from "@/lib/env"
 import App from "./App"
 import "./index.css"
 import "./i18n" // 初始化 i18n
 
 // 初始化环境（获取平台信息）
 initEnv()
+
+// 添加平台类名（用于移动端特定样式）
+if (isAndroid() || isIOS()) {
+  document.documentElement.classList.add("platform-mobile")
+}
 
 // 在 React 渲染前初始化主题，避免闪烁
 const theme = localStorage.getItem(STORAGE_KEYS.THEME) || "system"

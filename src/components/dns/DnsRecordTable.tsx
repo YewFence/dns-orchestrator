@@ -260,11 +260,13 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
+              disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
+              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -281,14 +283,16 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogCancel disabled={isBatchDeleting}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
                 setShowBatchDeleteConfirm(false)
                 await batchDeleteRecords(accountId, domainId)
               }}
+              disabled={isBatchDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
+              {isBatchDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -346,7 +350,7 @@ function MobileCardList({
   const { t } = useTranslation()
 
   return (
-    <div className="flex flex-col gap-3 p-4">
+    <div className="scroll-pb-safe flex flex-col gap-3 p-4">
       {/* 选择模式下显示全选行 */}
       {isSelectMode && records.length > 0 && (
         <div className="flex items-center gap-2 rounded-lg border bg-muted/50 p-3">

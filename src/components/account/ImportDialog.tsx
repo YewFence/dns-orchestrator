@@ -37,6 +37,7 @@ export function ImportDialog({ open, onOpenChange, onImportSuccess }: ImportDial
   const [password, setPassword] = useState("")
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
 
   const resetState = useCallback(() => {
     setStep("select")
@@ -45,6 +46,7 @@ export function ImportDialog({ open, onOpenChange, onImportSuccess }: ImportDial
     setPassword("")
     setPreview(null)
     setIsLoading(false)
+    setIsImporting(false)
   }, [])
 
   const handleSelectFile = async () => {
@@ -112,8 +114,9 @@ export function ImportDialog({ open, onOpenChange, onImportSuccess }: ImportDial
   }
 
   const handleImport = async () => {
-    if (!fileContent) return
+    if (!fileContent || isImporting) return
 
+    setIsImporting(true)
     setStep("importing")
     try {
       const request: ImportAccountsRequest = {
@@ -130,10 +133,12 @@ export function ImportDialog({ open, onOpenChange, onImportSuccess }: ImportDial
       } else {
         toast.error(getErrorMessage(response.error))
         setStep("preview")
+        setIsImporting(false)
       }
     } catch (err) {
       toast.error(extractErrorMessage(err))
       setStep("preview")
+      setIsImporting(false)
     }
   }
 
@@ -255,8 +260,12 @@ export function ImportDialog({ open, onOpenChange, onImportSuccess }: ImportDial
             </Button>
           )}
           {step === "preview" && (
-            <Button onClick={handleImport}>
-              <Upload className="mr-2 h-4 w-4" />
+            <Button onClick={handleImport} disabled={isImporting}>
+              {isImporting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="mr-2 h-4 w-4" />
+              )}
               {t("import.importButton")}
             </Button>
           )}

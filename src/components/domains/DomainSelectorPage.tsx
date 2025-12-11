@@ -1,5 +1,4 @@
 import {
-  ArrowLeft,
   ChevronRight,
   Globe,
   Loader2,
@@ -11,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import { getProviderName, ProviderIcon } from "@/components/account/ProviderIcon"
+import { MobileMenuTrigger } from "@/components/layout/MobileMenuTrigger"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -235,9 +235,9 @@ export function DomainSelectorPage() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 border-b bg-background px-4 py-3 sm:gap-3 sm:px-6 sm:py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <div className="md:hidden">
+          <MobileMenuTrigger />
+        </div>
         <Globe className="h-5 w-5 text-primary" />
         <h2 className="flex-1 font-semibold text-xl">{t("nav.domains")}</h2>
         <Button
@@ -266,7 +266,7 @@ export function DomainSelectorPage() {
 
       {/* 账户域名列表 */}
       <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-3 p-4 sm:p-6">
+        <div className="scroll-pb-safe space-y-3 p-4 sm:p-6">
           {isAccountsLoading ? (
             <div className="space-y-3">
               <Skeleton className="h-16 w-full rounded-lg" />
