@@ -2,7 +2,6 @@
 
 use actix_web::{HttpResponse, ResponseError};
 use serde::Serialize;
-use std::fmt;
 
 /// API 错误类型
 #[derive(Debug, thiserror::Error)]
@@ -69,29 +68,6 @@ impl<T> ApiResponse<T> {
     }
 }
 
-impl fmt::Display for ApiError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_ref())
-    }
-}
-
-impl AsRef<str> for ApiError {
-    fn as_ref(&self) -> &str {
-        match self {
-            Self::AccountNotFound(_) => "ACCOUNT_NOT_FOUND",
-            Self::ProviderNotFound(_) => "PROVIDER_NOT_FOUND",
-            Self::DomainNotFound(_) => "DOMAIN_NOT_FOUND",
-            Self::RecordNotFound(_) => "RECORD_NOT_FOUND",
-            Self::CredentialValidation(_) => "CREDENTIAL_VALIDATION_FAILED",
-            Self::Provider(_) => "PROVIDER_ERROR",
-            Self::Database(_) => "DATABASE_ERROR",
-            Self::Encryption(_) => "ENCRYPTION_ERROR",
-            Self::BadRequest(_) => "BAD_REQUEST",
-            Self::UnknownCommand(_) => "UNKNOWN_COMMAND",
-            Self::Internal(_) => "INTERNAL_ERROR",
-        }
-    }
-}
 
 impl ResponseError for ApiError {
     fn error_response(&self) -> HttpResponse {
