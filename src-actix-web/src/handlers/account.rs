@@ -216,7 +216,7 @@ pub fn list_providers() -> Vec<ProviderInfo> {
     dns_orchestrator_provider::get_all_provider_metadata()
         .into_iter()
         .map(|m| ProviderInfo {
-            id: m.id,
+            id: m.id.to_string(),
             name: m.name,
             description: m.description,
             required_fields: m
