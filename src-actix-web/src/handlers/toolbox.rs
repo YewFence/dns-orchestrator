@@ -1,6 +1,7 @@
 //! Toolbox 网络工具处理模块
 
-use hickory_resolver::config::{ResolverConfig, ResolverOpts};
+use hickory_resolver::config::{NameServerConfigGroup, ResolverConfig, ResolverOpts};
+use hickory_resolver::name_server::TokioConnectionProvider;
 use hickory_resolver::TokioResolver;
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
@@ -90,14 +91,15 @@ pub struct SslCheckResult {
 /// WHOIS 查询
 pub async fn whois_lookup(domain: &str) -> Result<WhoisResult, ApiError> {
     let whois = whois_rust::WhoIs::from_string(include_str!(
-        "../../../resources/whois_servers.json"
+        "../../resources/whois_servers.json"
     ))
     .map_err(|e| ApiError::Internal(format!("加载 WHOIS 服务器失败: {e}")))?;
 
+    let options = whois_rust::WhoIsLookupOptions::from_string(domain)
+        .map_err(|e| ApiError::BadRequest(format!("无效的域名: {e}")))?;
+
     let result = whois
-        .lookup_async(whois_rust::WhoIsLookupOptions::from_domain(domain).map_err(|e| {
-            ApiError::BadRequest(format!("无效的域名: {e}"))
-        })?)
+        .lookup_async(options)
         .await
         .map_err(|e| ApiError::Internal(format!("WHOIS 查询失败: {e}")))?;
 
@@ -125,6 +127,33 @@ pub async fn whois_lookup(domain: &str) -> Result<WhoisResult, ApiError> {
     })
 }
 
+/// 创建 DNS 解析器
+fn create_resolver(nameserver: Option<&str>) -> Result<TokioResolver, ApiError> {
+    let provider = TokioConnectionProvider::default();
+
+    if let Some(ns) = nameserver {
+        // 使用指定的 DNS 服务器
+        let ns_ip: IpAddr = ns
+            .parse()
+            .map_err(|_| ApiError::BadRequest(format!("无效的 DNS 服务器地址: {ns}")))?;
+
+        let config = ResolverConfig::from_parts(
+            None,
+            vec![],
+            NameServerConfigGroup::from_ips_clear(&[ns_ip], 53, true),
+        );
+
+        Ok(TokioResolver::builder_with_config(config, provider)
+            .with_options(ResolverOpts::default())
+            .build())
+    } else {
+        // 使用系统配置
+        Ok(TokioResolver::builder_with_config(ResolverConfig::default(), provider)
+            .with_options(ResolverOpts::default())
+            .build())
+    }
+}
+
 /// DNS 查询
 pub async fn dns_lookup(
     domain: &str,
@@ -132,28 +161,7 @@ pub async fn dns_lookup(
     nameserver: Option<&str>,
 ) -> Result<DnsLookupResult, ApiError> {
     let start = std::time::Instant::now();
-
-    let resolver = if let Some(ns) = nameserver {
-        // 使用指定的 DNS 服务器
-        let ns_ip: IpAddr = ns
-            .parse()
-            .map_err(|_| ApiError::BadRequest(format!("无效的 DNS 服务器地址: {ns}")))?;
-
-        let mut config = ResolverConfig::new();
-        config.add_name_server(hickory_resolver::config::NameServerConfig {
-            socket_addr: std::net::SocketAddr::new(ns_ip, 53),
-            protocol: hickory_resolver::config::Protocol::Udp,
-            tls_dns_name: None,
-            trust_negative_responses: true,
-            tls_config: None,
-            bind_addr: None,
-        });
-
-        TokioResolver::tokio(config, ResolverOpts::default())
-    } else {
-        TokioResolver::tokio_from_system_conf()
-            .map_err(|e| ApiError::Internal(format!("无法创建 DNS 解析器: {e}")))?
-    };
+    let resolver = create_resolver(nameserver)?;
 
     let records = match record_type.to_uppercase().as_str() {
         "A" => lookup_a(&resolver, domain).await?,
@@ -202,8 +210,7 @@ pub async fn ip_lookup(query: &str) -> Result<IpLookupResult, ApiError> {
         .parse()
         .map_err(|_| ApiError::BadRequest(format!("无效的 IP 地址: {query}")))?;
 
-    let resolver = TokioResolver::tokio_from_system_conf()
-        .map_err(|e| ApiError::Internal(format!("无法创建 DNS 解析器: {e}")))?;
+    let resolver = create_resolver(None)?;
 
     let hostname = resolver
         .reverse_lookup(ip)
@@ -222,7 +229,6 @@ pub async fn ip_lookup(query: &str) -> Result<IpLookupResult, ApiError> {
 pub async fn ssl_check(domain: &str, port: Option<u16>) -> Result<SslCheckResult, ApiError> {
     use rustls::pki_types::ServerName;
     use std::sync::Arc;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpStream;
     use x509_parser::prelude::*;
 
@@ -314,8 +320,8 @@ pub async fn ssl_check(domain: &str, port: Option<u16>) -> Result<SslCheckResult
 
     let issuer = cert.issuer().to_string();
     let subject = cert.subject().to_string();
-    let not_before = cert.validity().not_before.to_rfc2822();
-    let not_after = cert.validity().not_after.to_rfc2822();
+    let not_before = cert.validity().not_before.to_rfc2822().ok();
+    let not_after = cert.validity().not_after.to_rfc2822().ok();
 
     let now = chrono::Utc::now();
     let expiry = chrono::DateTime::from_timestamp(cert.validity().not_after.timestamp(), 0)
@@ -326,8 +332,8 @@ pub async fn ssl_check(domain: &str, port: Option<u16>) -> Result<SslCheckResult
         valid: days_remaining > 0,
         issuer: Some(issuer),
         subject: Some(subject),
-        not_before: Some(not_before),
-        not_after: Some(not_after),
+        not_before,
+        not_after,
         days_remaining: Some(days_remaining),
         error: None,
     })
@@ -375,7 +381,7 @@ async fn lookup_a(resolver: &TokioResolver, domain: &str) -> Result<Vec<DnsLooku
         .map(|ip| DnsLookupRecord {
             name: domain.to_string(),
             record_type: "A".to_string(),
-            ttl: lookup.query().queries().first().map_or(0, |q| 300),
+            ttl: 300,
             value: ip.to_string(),
         })
         .collect())

@@ -29,5 +29,7 @@ dist-ssr
 keystore.properties
 keystore.base64
 
-# cargo build
-target/
+src-actix-web/target
+src-tauri/target
+src-tauri/src-tauri/target
+dns-orchestrator-provider/target

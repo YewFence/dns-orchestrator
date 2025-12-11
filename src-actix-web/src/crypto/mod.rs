@@ -7,7 +7,7 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use rand::RngCore;
+use rand::{thread_rng, RngCore};
 
 use crate::error::ApiError;
 
@@ -41,7 +41,7 @@ impl CryptoManager {
     /// 生成随机密钥（hex 编码）
     pub fn generate_key() -> String {
         let mut key = [0u8; KEY_SIZE];
-        rand::rng().fill_bytes(&mut key);
+        thread_rng().fill_bytes(&mut key);
         hex::encode(key)
     }
 
@@ -51,7 +51,7 @@ impl CryptoManager {
             .map_err(|e| ApiError::Encryption(format!("创建加密器失败: {e}")))?;
 
         let mut nonce_bytes = [0u8; NONCE_SIZE];
-        rand::rng().fill_bytes(&mut nonce_bytes);
+        thread_rng().fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
 
         let ciphertext = cipher

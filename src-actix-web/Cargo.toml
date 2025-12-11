@@ -38,8 +38,8 @@ members = [".", "migration"]
 path = "./migration"
 
 [dependencies]
-# DNS Provider 共享库
-dns-orchestrator-provider = { path = "../dns-orchestrator-provider", features = ["rustls", "all-providers"] }
+# DNS Provider 共享库（使用 native-tls 避免 Windows aws-lc 编译问题）
+dns-orchestrator-provider = { path = "../dns-orchestrator-provider", default-features = false, features = ["native-tls", "all-providers"] }
 
 # Web 框架
 actix-service = "2.0.3"
@@ -57,11 +57,12 @@ uuid = { version = "1.19.0", features = ["v4", "serde"] }
 # 系统
 num_cpus = { version = "1.17.0", default-features = false }
 
-# TLS
-rustls = "0.23.35"
+# TLS (用于 SSL 检查功能，使用 ring 后端避免 aws-lc)
+rustls = { version = "0.23.35", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
 
 # 数据库 ORM
-sea-orm = { version = "2.0.0-rc", default-features = false, features = ["sqlx-mysql", "sqlx-postgres", "sqlx-sqlite", "macros", "runtime-tokio-rustls", "chrono"] }
+sea-orm = { version = "2.0.0-rc", default-features = false, features = ["sqlx-mysql", "sqlx-postgres", "sqlx-sqlite", "macros", "runtime-tokio-native-tls", "chrono"] }
 
 # 序列化
 serde = { version = "1.0.228", features = ["derive"] }
@@ -69,7 +70,6 @@ serde_json = "1.0.145"
 
 # 异步运行时
 tokio = { version = "1.48.0", default-features = false, features = ["rt-multi-thread", "macros", "sync", "net", "time", "io-util"] }
-tokio-rustls = "0.26"
 
 # 配置
 toml = "0.9.8"

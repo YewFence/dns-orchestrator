@@ -456,19 +456,19 @@ fn encrypt_with_password(data: &str, password: &str) -> Result<String, ApiError>
     };
     use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
     use pbkdf2::pbkdf2_hmac_array;
-    use rand::RngCore;
+    use rand::{thread_rng, RngCore};
     use sha2::Sha256;
 
     // 生成随机 salt
     let mut salt = [0u8; 16];
-    rand::rng().fill_bytes(&mut salt);
+    thread_rng().fill_bytes(&mut salt);
 
     // 派生密钥
     let key = pbkdf2_hmac_array::<Sha256, 32>(password.as_bytes(), &salt, 100_000);
 
     // 生成随机 nonce
     let mut nonce_bytes = [0u8; 12];
-    rand::rng().fill_bytes(&mut nonce_bytes);
+    thread_rng().fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     // 加密
