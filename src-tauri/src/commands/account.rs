@@ -43,6 +43,7 @@ pub async fn create_account(
         return Err(DnsError::Provider(
             crate::error::ProviderError::InvalidCredentials {
                 provider: request.provider.to_string(),
+                raw_message: None,
             },
         ));
     }

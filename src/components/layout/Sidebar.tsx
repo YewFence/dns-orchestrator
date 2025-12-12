@@ -110,7 +110,9 @@ export function Sidebar({ currentView, onNavigate, isMobile = false, onClose }: 
           >
             <Globe className="h-6 w-6 shrink-0 text-primary" />
             {!collapsed && (
-              <span className="whitespace-nowrap font-semibold text-xl md:text-base">{t("common.appName")}</span>
+              <span className="whitespace-nowrap font-semibold text-xl md:text-base">
+                {t("common.appName")}
+              </span>
             )}
           </div>
 

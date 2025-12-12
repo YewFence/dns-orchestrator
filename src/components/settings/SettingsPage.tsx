@@ -1,14 +1,4 @@
-import {
-  Check,
-  Download,
-  Github,
-  Languages,
-  Monitor,
-  Moon,
-  RefreshCw,
-  Sun,
-  X,
-} from "lucide-react"
+import { Check, Download, Github, Languages, Monitor, Moon, RefreshCw, Sun, X } from "lucide-react"
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"

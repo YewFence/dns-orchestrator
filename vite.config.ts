@@ -30,9 +30,7 @@ export default defineConfig(async () => ({
       // 编译时切换平台检测实现
       "#platform-impl": path.resolve(
         __dirname,
-        platform === "web"
-          ? "./src/lib/platform.web.ts"
-          : "./src/lib/platform.tauri.ts"
+        platform === "web" ? "./src/lib/platform.web.ts" : "./src/lib/platform.tauri.ts"
       ),
       "@": path.resolve(__dirname, "./src"),
     },
@@ -56,7 +54,7 @@ export default defineConfig(async () => ({
       : undefined,
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      ignored: ["**/src-tauri/**", "**/src-actix-web/**", "**/dns-orchestrator-provider/**"],
     },
     // Web 模式下的代理配置
     ...(platform === "web" && {

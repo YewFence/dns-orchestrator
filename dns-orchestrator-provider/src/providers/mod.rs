@@ -1,5 +1,7 @@
 //! DNS Provider implementations
 
+pub mod common;
+
 #[cfg(feature = "aliyun")]
 mod aliyun;
 #[cfg(feature = "cloudflare")]

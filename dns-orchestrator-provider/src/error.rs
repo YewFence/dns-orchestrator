@@ -9,7 +9,10 @@ pub enum ProviderError {
     NetworkError { provider: String, detail: String },
 
     /// 凭证无效
-    InvalidCredentials { provider: String },
+    InvalidCredentials {
+        provider: String,
+        raw_message: Option<String>,
+    },
 
     /// 记录已存在
     RecordExists {
@@ -39,7 +42,24 @@ pub enum ProviderError {
     },
 
     /// 域名不存在
-    DomainNotFound { provider: String, domain: String },
+    DomainNotFound {
+        provider: String,
+        domain: String,
+        raw_message: Option<String>,
+    },
+
+    /// 域名被锁定/禁用
+    DomainLocked {
+        provider: String,
+        domain: String,
+        raw_message: Option<String>,
+    },
+
+    /// 权限/操作被拒绝
+    PermissionDenied {
+        provider: String,
+        raw_message: Option<String>,
+    },
 
     /// 响应解析失败
     ParseError { provider: String, detail: String },
@@ -61,8 +81,15 @@ impl std::fmt::Display for ProviderError {
             Self::NetworkError { provider, detail } => {
                 write!(f, "[{provider}] Network error: {detail}")
             }
-            Self::InvalidCredentials { provider } => {
-                write!(f, "[{provider}] Invalid credentials")
+            Self::InvalidCredentials {
+                provider,
+                raw_message,
+            } => {
+                if let Some(msg) = raw_message {
+                    write!(f, "[{provider}] Invalid credentials: {msg}")
+                } else {
+                    write!(f, "[{provider}] Invalid credentials")
+                }
             }
             Self::RecordExists {
                 provider,
@@ -88,8 +115,37 @@ impl std::fmt::Display for ProviderError {
             Self::QuotaExceeded { provider, .. } => {
                 write!(f, "[{provider}] Quota exceeded")
             }
-            Self::DomainNotFound { provider, domain } => {
-                write!(f, "[{provider}] Domain '{domain}' not found")
+            Self::DomainNotFound {
+                provider,
+                domain,
+                raw_message,
+            } => {
+                if let Some(msg) = raw_message {
+                    write!(f, "[{provider}] Domain '{domain}' not found: {msg}")
+                } else {
+                    write!(f, "[{provider}] Domain '{domain}' not found")
+                }
+            }
+            Self::DomainLocked {
+                provider,
+                domain,
+                raw_message,
+            } => {
+                if let Some(msg) = raw_message {
+                    write!(f, "[{provider}] Domain '{domain}' is locked: {msg}")
+                } else {
+                    write!(f, "[{provider}] Domain '{domain}' is locked")
+                }
+            }
+            Self::PermissionDenied {
+                provider,
+                raw_message,
+            } => {
+                if let Some(msg) = raw_message {
+                    write!(f, "[{provider}] Permission denied: {msg}")
+                } else {
+                    write!(f, "[{provider}] Permission denied")
+                }
             }
             Self::ParseError { provider, detail } => {
                 write!(f, "[{provider}] Parse error: {detail}")

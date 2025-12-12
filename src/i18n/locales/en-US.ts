@@ -403,6 +403,8 @@ export default {
         invalid_parameter: 'Invalid parameter "{{param}}": {{detail}}',
         quota_exceeded: "Quota exceeded",
         domain_not_found: 'Domain "{{domain}}" not found',
+        domain_locked: 'Domain "{{domain}}" is locked or disabled',
+        permission_denied: "Permission denied",
         parse_error: "Response parse failed: {{detail}}",
         unknown: "Unknown error",
       },

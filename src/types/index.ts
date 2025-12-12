@@ -43,6 +43,8 @@ export type ProviderErrorCode =
   | "InvalidParameter"
   | "QuotaExceeded"
   | "DomainNotFound"
+  | "DomainLocked"
+  | "PermissionDenied"
   | "ParseError"
   | "SerializationError"
   | "Unknown"
@@ -50,7 +52,7 @@ export type ProviderErrorCode =
 /** Provider 错误详情（根据 code 不同，结构不同） */
 export type ProviderErrorDetails =
   | { code: "NetworkError"; provider: string; detail: string }
-  | { code: "InvalidCredentials"; provider: string }
+  | { code: "InvalidCredentials"; provider: string; raw_message?: string }
   | {
       code: "RecordExists"
       provider: string
@@ -70,7 +72,9 @@ export type ProviderErrorDetails =
       detail: string
     }
   | { code: "QuotaExceeded"; provider: string; raw_message?: string }
-  | { code: "DomainNotFound"; provider: string; domain: string }
+  | { code: "DomainNotFound"; provider: string; domain: string; raw_message?: string }
+  | { code: "DomainLocked"; provider: string; domain: string; raw_message?: string }
+  | { code: "PermissionDenied"; provider: string; raw_message?: string }
   | { code: "ParseError"; provider: string; detail: string }
   | { code: "SerializationError"; provider: string; detail: string }
   | {

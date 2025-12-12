@@ -397,6 +397,8 @@ export default {
         invalid_parameter: '参数 "{{param}}" 无效: {{detail}}',
         quota_exceeded: "配额已用尽",
         domain_not_found: '域名 "{{domain}}" 不存在',
+        domain_locked: '域名 "{{domain}}" 已被锁定或禁用',
+        permission_denied: "操作被拒绝，权限不足",
         parse_error: "响应解析失败: {{detail}}",
         unknown: "未知错误",
       },

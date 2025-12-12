@@ -53,11 +53,12 @@ pub async fn list_domains(
             );
             Ok(ApiResponse::success(response))
         }
-        Err(ProviderError::InvalidCredentials { provider }) => {
+        Err(ProviderError::InvalidCredentials { provider, .. }) => {
             // 凭证失效，更新账户状态
             mark_account_invalid(&state, &account_id, "凭证已失效").await;
             Err(DnsError::Provider(ProviderError::InvalidCredentials {
                 provider,
+                raw_message: None,
             }))
         }
         Err(e) => Err(DnsError::Provider(e)),
