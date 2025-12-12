@@ -179,6 +179,7 @@ export default {
   home: {
     welcome: "欢迎使用 DNS Orchestrator",
     welcomeDesc: "管理你的 DNS 记录，一切尽在掌控",
+    restoringAccounts: "正在恢复账户...",
     totalAccounts: "账户总数",
     totalDomains: "域名总数",
     recentDomains: "最近访问",

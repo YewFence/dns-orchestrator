@@ -1,4 +1,5 @@
 import { MoreHorizontal, Pencil, Shield, ShieldOff, Trash2 } from "lucide-react"
+import { memo } from "react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -46,7 +47,7 @@ function formatTTL(ttl: number): string {
   return `${Math.floor(ttl / 86400)} 天`
 }
 
-export function DnsRecordCard({
+export const DnsRecordCard = memo(function DnsRecordCard({
   record,
   onEdit,
   onDelete,
@@ -133,4 +134,4 @@ export function DnsRecordCard({
       </div>
     </Card>
   )
-}
+})

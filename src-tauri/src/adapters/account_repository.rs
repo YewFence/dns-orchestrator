@@ -68,70 +68,73 @@ impl TauriAccountRepository {
 
 #[async_trait]
 impl AccountRepository for TauriAccountRepository {
-    async fn find_all(&self) -> CoreResult<Vec<Account>> {
+    async fn find_all(&self) -> CoreResult<Arc<Vec<Account>>> {
         // 先检查缓存
         {
             let cache = self.cache.read().await;
             if let Some(ref accounts) = *cache {
                 // 只 clone Arc 指针，不 clone 整个 Vec
-                return Ok(Vec::clone(accounts));
+                return Ok(Arc::clone(accounts));
             }
         }
 
         // 从 Store 加载
         let accounts = self.load_from_store()?;
+        let accounts_arc = Arc::new(accounts);
 
         // 更新缓存
         {
             let mut cache = self.cache.write().await;
-            *cache = Some(Arc::new(accounts.clone()));
+            *cache = Some(Arc::clone(&accounts_arc));
         }
 
-        Ok(accounts)
+        Ok(accounts_arc)
     }
 
     async fn find_by_id(&self, id: &str) -> CoreResult<Option<Account>> {
         let accounts = self.find_all().await?;
-        Ok(accounts.into_iter().find(|a| a.id == id))
+        Ok(accounts.iter().find(|a| a.id == id).cloned())
     }
 
     async fn save(&self, account: &Account) -> CoreResult<()> {
-        let mut accounts = self.find_all().await?;
+        let accounts = self.find_all().await?;
+        let mut accounts_vec = (*accounts).clone();
 
         // 查找是否已存在
-        if let Some(pos) = accounts.iter().position(|a| a.id == account.id) {
-            accounts[pos] = account.clone();
+        if let Some(pos) = accounts_vec.iter().position(|a| a.id == account.id) {
+            accounts_vec[pos] = account.clone();
         } else {
-            accounts.push(account.clone());
+            accounts_vec.push(account.clone());
         }
 
-        self.save_to_store(&accounts)?;
+        self.save_to_store(&accounts_vec)?;
 
         // 更新缓存
         {
             let mut cache = self.cache.write().await;
-            *cache = Some(Arc::new(accounts));
+            *cache = Some(Arc::new(accounts_vec));
         }
 
         Ok(())
     }
 
     async fn delete(&self, id: &str) -> CoreResult<()> {
-        let mut accounts = self.find_all().await?;
+        let accounts = self.find_all().await?;
+        let mut accounts_vec = (*accounts).clone();
 
-        let initial_len = accounts.len();
-        accounts.retain(|a| a.id != id);
+        let initial_len = accounts_vec.len();
+        accounts_vec.retain(|a| a.id != id);
 
-        if accounts.len() == initial_len {
+        if accounts_vec.len() == initial_len {
             return Err(CoreError::AccountNotFound(id.to_string()));
         }
 
-        self.save_to_store(&accounts)?;
+        self.save_to_store(&accounts_vec)?;
 
         // 更新缓存
         {
             let mut cache = self.cache.write().await;
-            *cache = Some(Arc::new(accounts));
+            *cache = Some(Arc::new(accounts_vec));
         }
 
         log::info!("Deleted account {id} from store");
@@ -156,9 +159,10 @@ impl AccountRepository for TauriAccountRepository {
         status: AccountStatus,
         error: Option<String>,
     ) -> CoreResult<()> {
-        let mut accounts = self.find_all().await?;
+        let accounts = self.find_all().await?;
+        let mut accounts_vec = (*accounts).clone();
 
-        let account = accounts
+        let account = accounts_vec
             .iter_mut()
             .find(|a| a.id == id)
             .ok_or_else(|| CoreError::AccountNotFound(id.to_string()))?;
@@ -167,12 +171,12 @@ impl AccountRepository for TauriAccountRepository {
         account.error = error;
         account.updated_at = chrono::Utc::now().to_rfc3339();
 
-        self.save_to_store(&accounts)?;
+        self.save_to_store(&accounts_vec)?;
 
         // 更新缓存
         {
             let mut cache = self.cache.write().await;
-            *cache = Some(Arc::new(accounts));
+            *cache = Some(Arc::new(accounts_vec));
         }
 
         Ok(())

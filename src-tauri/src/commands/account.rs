@@ -166,3 +166,11 @@ pub async fn import_accounts(
 
     Ok(ApiResponse::success(convert_import_result(result)))
 }
+
+/// 检查账户恢复是否完成
+#[tauri::command]
+pub fn is_restore_completed(state: State<'_, AppState>) -> bool {
+    state
+        .restore_completed
+        .load(std::sync::atomic::Ordering::SeqCst)
+}

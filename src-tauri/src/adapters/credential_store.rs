@@ -107,11 +107,9 @@ mod desktop {
             all_credentials.insert(account_id.to_string(), credentials.clone());
 
             let all_creds_for_save = all_credentials.clone();
-            tokio::task::spawn_blocking(move || {
-                Self::write_all_sync(&all_creds_for_save)
-            })
-            .await
-            .map_err(|e| CoreError::CredentialError(format!("Task join error: {e}")))??;
+            tokio::task::spawn_blocking(move || Self::write_all_sync(&all_creds_for_save))
+                .await
+                .map_err(|e| CoreError::CredentialError(format!("Task join error: {e}")))??;
 
             // 更新缓存
             {
@@ -138,11 +136,9 @@ mod desktop {
             all_credentials.remove(account_id);
 
             let all_creds_for_save = all_credentials.clone();
-            tokio::task::spawn_blocking(move || {
-                Self::write_all_sync(&all_creds_for_save)
-            })
-            .await
-            .map_err(|e| CoreError::CredentialError(format!("Task join error: {e}")))??;
+            tokio::task::spawn_blocking(move || Self::write_all_sync(&all_creds_for_save))
+                .await
+                .map_err(|e| CoreError::CredentialError(format!("Task join error: {e}")))??;
 
             // 更新缓存
             {

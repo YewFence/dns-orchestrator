@@ -1,7 +1,8 @@
 import { Loader2 } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useDebouncedCallback } from "use-debounce"
+import { useShallow } from "zustand/react/shallow"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +28,8 @@ import type { DnsRecordTableProps } from "./types"
 export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecordTableProps) {
   const { t } = useTranslation()
   const isMobile = useIsMobile()
+
+  // 使用 useShallow 优化 store 订阅粒度
   const {
     records,
     isLoading,
@@ -37,20 +40,37 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
     currentDomainId,
     keyword,
     recordType,
-    setKeyword,
-    setRecordType,
-    fetchRecords,
-    fetchMoreRecords,
-    deleteRecord,
     selectedRecordIds,
     isSelectMode,
     isBatchDeleting,
-    toggleSelectMode,
-    toggleRecordSelection,
-    selectAllRecords,
-    clearSelection,
-    batchDeleteRecords,
-  } = useDnsStore()
+  } = useDnsStore(
+    useShallow((state) => ({
+      records: state.records,
+      isLoading: state.isLoading,
+      isLoadingMore: state.isLoadingMore,
+      isDeleting: state.isDeleting,
+      hasMore: state.hasMore,
+      totalCount: state.totalCount,
+      currentDomainId: state.currentDomainId,
+      keyword: state.keyword,
+      recordType: state.recordType,
+      selectedRecordIds: state.selectedRecordIds,
+      isSelectMode: state.isSelectMode,
+      isBatchDeleting: state.isBatchDeleting,
+    }))
+  )
+
+  // actions 单独获取（函数引用稳定，不需要 shallow）
+  const setKeyword = useDnsStore((state) => state.setKeyword)
+  const setRecordType = useDnsStore((state) => state.setRecordType)
+  const fetchRecords = useDnsStore((state) => state.fetchRecords)
+  const fetchMoreRecords = useDnsStore((state) => state.fetchMoreRecords)
+  const deleteRecord = useDnsStore((state) => state.deleteRecord)
+  const toggleSelectMode = useDnsStore((state) => state.toggleSelectMode)
+  const toggleRecordSelection = useDnsStore((state) => state.toggleRecordSelection)
+  const selectAllRecords = useDnsStore((state) => state.selectAllRecords)
+  const clearSelection = useDnsStore((state) => state.clearSelection)
+  const batchDeleteRecords = useDnsStore((state) => state.batchDeleteRecords)
 
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<DnsRecord | null>(null)
@@ -73,24 +93,30 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
   }, TIMING.DEBOUNCE_DELAY)
 
   // 处理搜索输入变化
-  const handleSearchChange = (value: string) => {
-    setKeyword(value)
-    debouncedSearch(value)
-  }
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setKeyword(value)
+      debouncedSearch(value)
+    },
+    [setKeyword, debouncedSearch]
+  )
 
   // 处理类型选择变化
-  const handleTypeChange = (type: string) => {
-    const newType = recordType === type ? "" : type
-    setRecordType(newType)
-    fetchRecords(accountId, domainId, keyword, newType)
-  }
+  const handleTypeChange = useCallback(
+    (type: string) => {
+      const newType = recordType === type ? "" : type
+      setRecordType(newType)
+      fetchRecords(accountId, domainId, keyword, newType)
+    },
+    [recordType, setRecordType, fetchRecords, accountId, domainId, keyword]
+  )
 
   // 清除所有筛选
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setKeyword("")
     setRecordType("")
     fetchRecords(accountId, domainId, "", "")
-  }
+  }, [setKeyword, setRecordType, fetchRecords, accountId, domainId])
 
   useEffect(() => {
     fetchRecords(accountId, domainId)
@@ -121,17 +147,21 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
     return () => observer.disconnect()
   }, [handleObserver])
 
-  const hasActiveFilters = !!(keyword || recordType)
+  const hasActiveFilters = useMemo(() => !!(keyword || recordType), [keyword, recordType])
 
-  const handleDelete = (record: DnsRecord) => setDeletingRecord(record)
-  const handleEdit = (record: DnsRecord) => {
+  const handleDelete = useCallback((record: DnsRecord) => setDeletingRecord(record), [])
+  const handleEdit = useCallback((record: DnsRecord) => {
     setEditingRecord(record)
     setShowAddForm(true)
-  }
-  const handleFormClose = () => {
+  }, [])
+  const handleFormClose = useCallback(() => {
     setShowAddForm(false)
     setEditingRecord(null)
-  }
+  }, [])
+
+  const handleRefresh = useCallback(() => {
+    fetchRecords(accountId, domainId, keyword, recordType)
+  }, [fetchRecords, accountId, domainId, keyword, recordType])
 
   const confirmDelete = async () => {
     if (!deletingRecord) return
@@ -163,7 +193,7 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
         onSearchChange={handleSearchChange}
         onTypeChange={handleTypeChange}
         onClearFilters={clearFilters}
-        onRefresh={() => fetchRecords(accountId, domainId, keyword, recordType)}
+        onRefresh={handleRefresh}
         onToggleSelectMode={toggleSelectMode}
         onAdd={() => setShowAddForm(true)}
       />

@@ -1,4 +1,4 @@
-import { ChevronRight, Clock, Globe, Settings, Users, Wrench } from "lucide-react"
+import { ChevronRight, Clock, Globe, Loader2, Settings, Users, Wrench } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
@@ -11,7 +11,7 @@ import { useAccountStore, useDomainStore } from "@/stores"
 export function HomePage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { accounts } = useAccountStore()
+  const { accounts, isRestoring } = useAccountStore()
   const { domainsByAccount } = useDomainStore()
   const [recentDomains, setRecentDomains] = useState<RecentDomain[]>(getRecentDomains)
 
@@ -70,15 +70,24 @@ export function HomePage() {
           <h1 className="font-semibold text-2xl">{t("home.welcome")}</h1>
           <p className="mt-1 text-muted-foreground">{t("home.welcomeDesc")}</p>
           <div className="mt-2 flex items-center gap-1 text-muted-foreground text-sm">
-            <Users className="h-3.5 w-3.5" />
-            <span>
-              {accounts.length} {t("home.totalAccounts")}
-            </span>
-            <span className="mx-1">·</span>
-            <Globe className="h-3.5 w-3.5" />
-            <span>
-              {totalDomains} {t("home.totalDomains")}
-            </span>
+            {isRestoring ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span>{t("home.restoringAccounts")}</span>
+              </>
+            ) : (
+              <>
+                <Users className="h-3.5 w-3.5" />
+                <span>
+                  {accounts.length} {t("home.totalAccounts")}
+                </span>
+                <span className="mx-1">·</span>
+                <Globe className="h-3.5 w-3.5" />
+                <span>
+                  {totalDomains} {t("home.totalDomains")}
+                </span>
+              </>
+            )}
           </div>
         </div>
 

@@ -36,16 +36,16 @@ export function RootLayout() {
   const isMobile = useIsMobile()
 
   const { checkForUpdates, showUpdateDialog, setShowUpdateDialog } = useUpdaterStore()
-  const { accounts, fetchAccounts } = useAccountStore()
+  const { accounts, checkRestoreStatus } = useAccountStore()
   const { loadFromStorage, refreshAllAccounts } = useDomainStore()
 
   // 初始化
   useEffect(() => {
     initTheme()
     initDebugMode()
-    fetchAccounts()
+    checkRestoreStatus()
     loadFromStorage()
-  }, [fetchAccounts, loadFromStorage])
+  }, [checkRestoreStatus, loadFromStorage])
 
   // 账户加载完成后，清理无效记录并后台刷新域名
   useEffect(() => {

@@ -3,6 +3,7 @@ mod commands;
 mod error;
 mod types;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 #[cfg(target_os = "android")]
@@ -28,6 +29,8 @@ pub struct AppState {
     pub dns_service: DnsService,
     /// 工具箱服务
     pub toolbox_service: ToolboxService,
+    /// 账户恢复是否完成
+    pub restore_completed: AtomicBool,
 }
 
 impl AppState {
@@ -61,6 +64,7 @@ impl AppState {
             domain_service,
             dns_service,
             toolbox_service,
+            restore_completed: AtomicBool::new(false),
         }
     }
 }
@@ -102,25 +106,30 @@ pub fn run() {
     let builder = builder.setup(|app| {
         // 创建 AppState（需要 AppHandle）
         let state = AppState::new(app.handle().clone());
-
-        // 使用 tokio runtime 来执行异步恢复
-        let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
-        let result = rt.block_on(state.account_service.restore_accounts());
-
-        match result {
-            Ok(restore_result) => {
-                log::info!(
-                    "Account restoration complete: {} succeeded, {} failed",
-                    restore_result.success_count,
-                    restore_result.error_count
-                );
-            }
-            Err(e) => {
-                log::error!("Failed to restore accounts: {e}");
-            }
-        }
-
         app.manage(state);
+
+        // 后台恢复账户，不阻塞启动
+        let app_handle = app.handle().clone();
+        tauri::async_runtime::spawn(async move {
+            let state = app_handle.state::<AppState>();
+            let result = state.account_service.restore_accounts().await;
+
+            match result {
+                Ok(restore_result) => {
+                    log::info!(
+                        "Account restoration complete: {} succeeded, {} failed",
+                        restore_result.success_count,
+                        restore_result.error_count
+                    );
+                }
+                Err(e) => {
+                    log::error!("Failed to restore accounts: {e}");
+                }
+            }
+
+            state.restore_completed.store(true, Ordering::SeqCst);
+        });
+
         Ok(())
     });
 
@@ -134,6 +143,7 @@ pub fn run() {
         account::export_accounts,
         account::preview_import,
         account::import_accounts,
+        account::is_restore_completed,
         // Domain commands
         domain::list_domains,
         domain::get_domain,
@@ -160,6 +170,7 @@ pub fn run() {
         account::export_accounts,
         account::preview_import,
         account::import_accounts,
+        account::is_restore_completed,
         // Domain commands
         domain::list_domains,
         domain::get_domain,

@@ -14,7 +14,10 @@ interface AccountDomainCache {
 }
 
 // 从 localStorage 读取初始缓存数据
-function getInitialCache(): { domainsByAccount: Record<string, AccountDomainCache>; scrollPosition: number } {
+function getInitialCache(): {
+  domainsByAccount: Record<string, AccountDomainCache>
+  scrollPosition: number
+} {
   try {
     const cached = localStorage.getItem(STORAGE_KEYS.DOMAINS_CACHE)
     if (cached) {

@@ -2,6 +2,7 @@ import { ArrowLeft } from "lucide-react"
 import { useEffect, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
+import { useShallow } from "zustand/react/shallow"
 import { DnsRecordTable } from "@/components/dns/DnsRecordTable"
 import { addRecentDomain } from "@/lib/recent-domains"
 import { Button } from "@/components/ui/button"
@@ -11,8 +12,15 @@ export function DnsRecordPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { accountId, domainId } = useParams<{ accountId: string; domainId: string }>()
-  const { accounts, providers } = useAccountStore()
-  const { getDomainsForAccount } = useDomainStore()
+
+  // 使用 useShallow 优化 store 订阅粒度
+  const { accounts, providers } = useAccountStore(
+    useShallow((state) => ({
+      accounts: state.accounts,
+      providers: state.providers,
+    }))
+  )
+  const getDomainsForAccount = useDomainStore((state) => state.getDomainsForAccount)
 
   const selectedAccount = accounts.find((a) => a.id === accountId)
 

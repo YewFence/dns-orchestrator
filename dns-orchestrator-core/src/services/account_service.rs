@@ -28,7 +28,8 @@ impl AccountService {
 
     /// 列出所有账户
     pub async fn list_accounts(&self) -> CoreResult<Vec<Account>> {
-        self.ctx.account_repository.find_all().await
+        let accounts = self.ctx.account_repository.find_all().await?;
+        Ok((*accounts).clone())
     }
 
     /// 创建账户
@@ -427,7 +428,7 @@ impl AccountService {
             Err(e) => {
                 log::error!("Failed to load credentials: {e}");
                 // 标记所有账户为错误状态
-                for account in &accounts {
+                for account in accounts.iter() {
                     let _ = self
                         .ctx
                         .account_repository
@@ -442,7 +443,7 @@ impl AccountService {
         };
 
         // 3. 逐个恢复账户
-        for account in &accounts {
+        for account in accounts.iter() {
             let Some(credentials) = all_credentials.get(&account.id) else {
                 log::warn!("No credentials found for account: {}", account.id);
                 let _ = self

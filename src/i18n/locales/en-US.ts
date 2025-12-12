@@ -183,6 +183,7 @@ export default {
   home: {
     welcome: "Welcome to DNS Orchestrator",
     welcomeDesc: "Manage your DNS records with ease",
+    restoringAccounts: "Restoring accounts...",
     totalAccounts: "Total Accounts",
     totalDomains: "Total Domains",
     recentDomains: "Recent Domains",

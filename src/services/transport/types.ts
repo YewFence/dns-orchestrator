@@ -59,6 +59,10 @@ export interface CommandMap {
     args: { request: ImportAccountsRequest }
     result: ApiResponse<ImportResult>
   }
+  is_restore_completed: {
+    args: Record<string, never>
+    result: boolean
+  }
 
   // Domain commands
   list_domains: {

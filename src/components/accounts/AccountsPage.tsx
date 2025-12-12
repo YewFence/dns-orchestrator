@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
+import { useShallow } from "zustand/react/shallow"
 import { AccountForm } from "@/components/account/AccountForm"
 import { ExportDialog } from "@/components/account/ExportDialog"
 import { ImportDialog } from "@/components/account/ImportDialog"
@@ -41,19 +42,26 @@ import type { Account } from "@/types"
 
 export function AccountsPage() {
   const { t } = useTranslation()
-  const {
-    accounts,
-    isLoading,
-    isDeleting,
-    fetchAccounts,
-    deleteAccount,
-    isExportDialogOpen,
-    isImportDialogOpen,
-    openExportDialog,
-    closeExportDialog,
-    openImportDialog,
-    closeImportDialog,
-  } = useAccountStore()
+
+  // 使用 useShallow 优化 store 订阅粒度
+  const { accounts, isLoading, isDeleting, isExportDialogOpen, isImportDialogOpen } =
+    useAccountStore(
+      useShallow((state) => ({
+        accounts: state.accounts,
+        isLoading: state.isLoading,
+        isDeleting: state.isDeleting,
+        isExportDialogOpen: state.isExportDialogOpen,
+        isImportDialogOpen: state.isImportDialogOpen,
+      }))
+    )
+
+  // actions 单独获取
+  const fetchAccounts = useAccountStore((state) => state.fetchAccounts)
+  const deleteAccount = useAccountStore((state) => state.deleteAccount)
+  const openExportDialog = useAccountStore((state) => state.openExportDialog)
+  const closeExportDialog = useAccountStore((state) => state.closeExportDialog)
+  const openImportDialog = useAccountStore((state) => state.openImportDialog)
+  const closeImportDialog = useAccountStore((state) => state.closeImportDialog)
 
   const [showAccountForm, setShowAccountForm] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null)

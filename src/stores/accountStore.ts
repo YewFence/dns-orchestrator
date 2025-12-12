@@ -6,6 +6,7 @@ import { extractErrorMessage, getErrorMessage, getFieldErrorMessage } from "@/li
 import { logger } from "@/lib/logger"
 import { removeRecentDomainsByAccount } from "@/lib/recent-domains"
 import { accountService } from "@/services"
+import { transport } from "@/services/transport"
 import type { Account, CreateAccountRequest, CredentialValidationDetails } from "@/types"
 import type { ProviderInfo } from "@/types/provider"
 import { useDomainStore } from "./domainStore"
@@ -17,6 +18,7 @@ interface AccountState {
   expandedAccountId: string | null
   isLoading: boolean
   isDeleting: boolean
+  isRestoring: boolean
   error: string | null
   fieldErrors: Record<string, string> // 字段级错误
   isExportDialogOpen: boolean
@@ -33,15 +35,17 @@ interface AccountState {
   closeExportDialog: () => void
   openImportDialog: () => void
   closeImportDialog: () => void
+  checkRestoreStatus: () => Promise<void>
 }
 
-export const useAccountStore = create<AccountState>((set) => ({
+export const useAccountStore = create<AccountState>((set, get) => ({
   accounts: [],
   providers: [],
   selectedAccountId: null,
   expandedAccountId: null,
   isLoading: false,
   isDeleting: false,
+  isRestoring: false,
   error: null,
   fieldErrors: {},
   isExportDialogOpen: false,
@@ -152,4 +156,30 @@ export const useAccountStore = create<AccountState>((set) => ({
   closeExportDialog: () => set({ isExportDialogOpen: false }),
   openImportDialog: () => set({ isImportDialogOpen: true }),
   closeImportDialog: () => set({ isImportDialogOpen: false }),
+
+  checkRestoreStatus: async () => {
+    const completed = await transport.invoke("is_restore_completed")
+    if (completed) {
+      // 已完成，直接获取账户
+      get().fetchAccounts()
+      return
+    }
+
+    // 未完成，设置恢复中状态并轮询
+    set({ isRestoring: true })
+    const poll = setInterval(async () => {
+      try {
+        const done = await transport.invoke("is_restore_completed")
+        if (done) {
+          clearInterval(poll)
+          set({ isRestoring: false })
+          get().fetchAccounts()
+        }
+      } catch (err) {
+        logger.error("Failed to check restore status:", err)
+        clearInterval(poll)
+        set({ isRestoring: false })
+      }
+    }, 500)
+  },
 }))

@@ -2,6 +2,7 @@ import { ChevronRight, Globe, Loader2, RefreshCw, Search, TriangleAlert } from "
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
+import { useShallow } from "zustand/react/shallow"
 import { getProviderName, ProviderIcon } from "@/components/account/ProviderIcon"
 import { MobileMenuTrigger } from "@/components/layout/MobileMenuTrigger"
 import { Badge } from "@/components/ui/badge"
@@ -28,22 +29,36 @@ const statusConfig: Record<
 export function DomainSelectorPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { accounts, isLoading: isAccountsLoading } = useAccountStore()
-  const {
-    domainsByAccount,
-    isBackgroundRefreshing,
-    refreshAccount,
-    refreshAllAccounts,
-    loadMoreDomains,
-    getDomainsForAccount,
-    isAccountLoading,
-    isAccountLoadingMore,
-    hasMoreDomains,
-    expandedAccounts,
-    toggleExpandedAccount,
-    scrollPosition,
-    setScrollPosition,
-  } = useDomainStore()
+
+  // 使用 useShallow 优化 accountStore 订阅
+  const { accounts, isLoading: isAccountsLoading } = useAccountStore(
+    useShallow((state) => ({
+      accounts: state.accounts,
+      isLoading: state.isLoading,
+    }))
+  )
+
+  // 使用 useShallow 优化 domainStore 订阅
+  const { domainsByAccount, isBackgroundRefreshing, expandedAccounts, scrollPosition } =
+    useDomainStore(
+      useShallow((state) => ({
+        domainsByAccount: state.domainsByAccount,
+        isBackgroundRefreshing: state.isBackgroundRefreshing,
+        expandedAccounts: state.expandedAccounts,
+        scrollPosition: state.scrollPosition,
+      }))
+    )
+
+  // actions 单独获取
+  const refreshAccount = useDomainStore((state) => state.refreshAccount)
+  const refreshAllAccounts = useDomainStore((state) => state.refreshAllAccounts)
+  const loadMoreDomains = useDomainStore((state) => state.loadMoreDomains)
+  const getDomainsForAccount = useDomainStore((state) => state.getDomainsForAccount)
+  const isAccountLoading = useDomainStore((state) => state.isAccountLoading)
+  const isAccountLoadingMore = useDomainStore((state) => state.isAccountLoadingMore)
+  const hasMoreDomains = useDomainStore((state) => state.hasMoreDomains)
+  const toggleExpandedAccount = useDomainStore((state) => state.toggleExpandedAccount)
+  const setScrollPosition = useDomainStore((state) => state.setScrollPosition)
 
   const [searchQuery, setSearchQuery] = useState("")
   const scrollAreaRef = useRef<HTMLDivElement>(null)

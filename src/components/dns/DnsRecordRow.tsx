@@ -1,4 +1,5 @@
 import { MoreHorizontal, Pencil, Shield, ShieldOff, Trash2 } from "lucide-react"
+import { memo } from "react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -44,7 +45,7 @@ function formatTTL(
   return t("dns.ttlDay")
 }
 
-export function DnsRecordRow({
+export const DnsRecordRow = memo(function DnsRecordRow({
   record,
   onEdit,
   onDelete,
@@ -122,4 +123,4 @@ export function DnsRecordRow({
   }
 
   return <TableRow>{cells}</TableRow>
-}
+})
