@@ -12,7 +12,7 @@ use dns_orchestrator_core::traits::{CredentialStore, CredentialsMap};
 
 #[cfg(not(target_os = "android"))]
 mod desktop {
-    use super::{async_trait, CoreResult, CoreError, CredentialsMap, HashMap, CredentialStore};
+    use super::{async_trait, CoreError, CoreResult, CredentialStore, CredentialsMap, HashMap};
     use keyring::Entry;
 
     const SERVICE_NAME: &str = "dns-orchestrator";

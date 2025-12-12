@@ -1,7 +1,7 @@
 {
   "name": "dns-orchestrator",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.3.1",
   "author": "AptS:1547 (Yuhan Bian / 卞雨涵 <apts-1547@esaps.net>)",
   "type": "module",
   "scripts": {
@@ -18,11 +18,22 @@
     "format": "biome format --write ./src",
     "format:check": "biome check ./src",
     "format:fix": "biome check --write ./src",
-    "lint:rust": "cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings",
-    "format:rust": "cd src-tauri && cargo fmt",
-    "format:rust:check": "cd src-tauri && cargo fmt --check",
-    "check": "pnpm format:check && pnpm lint && pnpm format:rust:check && pnpm lint:rust",
-    "fix": "pnpm format:fix && pnpm format:rust"
+    "check": "pnpm format:check && pnpm lint",
+    "fix": "pnpm format:fix",
+    "format:rust:tauri": "cd src-tauri && cargo fmt --all && cd ..",
+    "format:rust:actix-web": "cd src-actix-web && cargo fmt --all && cd ..",
+    "format:rust:core": "cd dns-orchestrator-core && cargo fmt --all && cd ..",
+    "format:rust:provider": "cd dns-orchestrator-provider && cargo fmt --all && cd ..",
+    "format:rust": "pnpm format:rust:all",
+    "format:rust:all": "pnpm format:rust:tauri && pnpm format:rust:actix-web && pnpm format:rust:core && pnpm format:rust:provider",
+    "lint:rust:tauri": "cd src-tauri && cargo clippy --lib -p dns-orchestrator-tauri && cd ..",
+    "lint:rust:actix-web": "cd src-actix-web && cargo clippy --bin dns-orchestrator-web && cd ..",
+    "lint:rust:core": "cd dns-orchestrator-core && cargo clippy --lib -p dns-orchestrator-core && cd ..",
+    "lint:rust:provider": "cd dns-orchestrator-provider && cargo clippy --lib -p dns-orchestrator-provider && cd ..",
+    "lint:rust": "pnpm lint:rust:all",
+    "lint:rust:all": "pnpm lint:rust:tauri && pnpm lint:rust:actix-web && pnpm lint:rust:core && pnpm lint:rust:provider",
+    "lint:rust:fix": "pnpm lint:rust:tauri --fix && pnpm lint:rust:actix-web --fix && pnpm lint:rust:core --fix && pnpm lint:rust:provider --fix",
+    "postinstall": "pnpm sync-version"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",

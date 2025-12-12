@@ -55,7 +55,7 @@ export function HomePage() {
   const navigate = useNavigate()
   const { accounts } = useAccountStore()
   const { domainsByAccount } = useDomainStore()
-  const [recentDomains, setRecentDomains] = useState<RecentDomain[]>([])
+  const [recentDomains, setRecentDomains] = useState<RecentDomain[]>(getRecentDomains)
 
   // 计算总域名数
   const totalDomains = Object.values(domainsByAccount).reduce(

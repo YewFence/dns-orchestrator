@@ -53,6 +53,8 @@ pub struct DnspodDomain {
     pub name: String,
     #[serde(rename = "Status")]
     pub status: String,
+    #[serde(rename = "DNSStatus")]
+    pub dns_status: String,
     #[serde(rename = "RecordCount")]
     pub record_count: Option<u32>,
 }

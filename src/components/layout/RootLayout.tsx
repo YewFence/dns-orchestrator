@@ -49,8 +49,10 @@ export function RootLayout() {
 
   // 账户加载完成后，清理无效记录并后台刷新域名
   useEffect(() => {
-    // 清理无效的最近域名记录（包括账户为空的情况）
-    cleanupInvalidRecentDomains(accounts.map((a) => a.id))
+    // 只在账户真正加载后才清理，避免空数组误清理所有记录
+    if (accounts.length > 0) {
+      cleanupInvalidRecentDomains(accounts.map((a) => a.id))
+    }
 
     // 清理无效的域名缓存
     const { domainsByAccount, clearAllCache, clearAccountCache } = useDomainStore.getState()

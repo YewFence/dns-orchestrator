@@ -18,11 +18,12 @@ use super::{
 
 impl DnspodProvider {
     /// 将 DNSPod 域名状态转换为内部状态
-    pub(crate) fn convert_domain_status(status: &str) -> DomainStatus {
-        match status {
-            "ENABLE" | "enable" => DomainStatus::Active,
-            "PAUSE" | "pause" => DomainStatus::Paused,
-            "SPAM" | "spam" => DomainStatus::Error,
+    pub(crate) fn convert_domain_status(status: &str, dns_status: &str) -> DomainStatus {
+        match (status, dns_status) {
+            ("ENABLE" | "enable", "") => DomainStatus::Active,
+            ("PAUSE" | "pause", _) => DomainStatus::Paused,
+            ("ENABLE" | "enable", "DNSERROR") => DomainStatus::Error,
+            ("SPAM" | "spam", _) => DomainStatus::Error,
             _ => DomainStatus::Unknown,
         }
     }
@@ -92,7 +93,7 @@ impl DnsProvider for DnspodProvider {
                 id: d.domain_id.to_string(),
                 name: d.name,
                 provider: ProviderType::Dnspod,
-                status: Self::convert_domain_status(&d.status),
+                status: Self::convert_domain_status(&d.status, &d.dns_status),
                 record_count: d.record_count,
             })
             .collect();

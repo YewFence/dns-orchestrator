@@ -54,24 +54,6 @@ export function DomainSelectorPage() {
     [accounts]
   )
 
-  // 默认展开第一个账户
-  useEffect(() => {
-    if (validAccounts.length > 0 && expandedAccounts.size === 0) {
-      const firstAccountId = validAccounts[0].id
-      toggleExpandedAccount(firstAccountId)
-      // 如果该账户没有缓存，则加载
-      if (!domainsByAccount[firstAccountId]) {
-        refreshAccount(firstAccountId).catch(() => {})
-      }
-    }
-  }, [
-    validAccounts,
-    expandedAccounts.size,
-    domainsByAccount,
-    refreshAccount,
-    toggleExpandedAccount,
-  ])
-
   // 恢复滚动位置（组件挂载时）
   useEffect(() => {
     if (scrollAreaRef.current && scrollPosition > 0) {
