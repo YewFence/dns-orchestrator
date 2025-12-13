@@ -11,8 +11,8 @@ use reqwest::Client;
 use crate::providers::common::create_http_client;
 
 pub(crate) use types::{
-    CreateRecordResponse, DomainListResponse, ModifyRecordResponse, RecordListResponse,
-    TencentResponse,
+    CreateRecordResponse, DescribeDomainResponse, DomainListResponse, ModifyRecordResponse,
+    RecordListResponse, TencentResponse,
 };
 
 pub(crate) const DNSPOD_API_HOST: &str = "dnspod.tencentcloudapi.com";

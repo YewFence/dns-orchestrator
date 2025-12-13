@@ -17,6 +17,7 @@ impl AliyunProvider {
         &self,
         action: &str,
         params: &B,
+        ctx: ErrorContext,
     ) -> Result<T> {
         // 1. 序列化参数为 query string
         let query_string = serialize_to_query_string(params)?;
@@ -66,10 +67,7 @@ impl AliyunProvider {
             && let (Some(code), Some(message)) = (error_response.code, error_response.message)
         {
             log::error!("API 错误: {code} - {message}");
-            return Err(self.map_error(
-                RawApiError::with_code(&code, &message),
-                ErrorContext::default(),
-            ));
+            return Err(self.map_error(RawApiError::with_code(&code, &message), ctx));
         }
 
         // 解析成功响应

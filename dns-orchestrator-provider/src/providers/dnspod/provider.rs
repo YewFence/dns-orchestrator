@@ -5,15 +5,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{ProviderError, Result};
 use crate::providers::common::{parse_record_type, record_type_to_string};
-use crate::traits::{DnsProvider, ProviderErrorMapper};
+use crate::traits::{DnsProvider, ErrorContext, ProviderErrorMapper};
 use crate::types::{
     CreateDnsRecordRequest, DnsRecord, DomainStatus, PaginatedResponse, PaginationParams,
     ProviderDomain, ProviderType, RecordQueryParams, UpdateDnsRecordRequest,
 };
 
 use super::{
-    CreateRecordResponse, DnspodProvider, DomainListResponse, MAX_PAGE_SIZE, ModifyRecordResponse,
-    RecordListResponse,
+    CreateRecordResponse, DescribeDomainResponse, DnspodProvider, DomainListResponse,
+    MAX_PAGE_SIZE, ModifyRecordResponse, RecordListResponse,
 };
 
 impl DnspodProvider {
@@ -50,7 +50,7 @@ impl DnsProvider for DnspodProvider {
         };
 
         match self
-            .request::<DomainListResponse, _>("DescribeDomainList", &req)
+            .request::<DomainListResponse, _>("DescribeDomainList", &req, ErrorContext::default())
             .await
         {
             Ok(_) => Ok(true),
@@ -81,7 +81,9 @@ impl DnsProvider for DnspodProvider {
             limit: params.page_size.min(MAX_PAGE_SIZE),
         };
 
-        let response: DomainListResponse = self.request("DescribeDomainList", &req).await?;
+        let response: DomainListResponse = self
+            .request("DescribeDomainList", &req, ErrorContext::default())
+            .await?;
 
         let total_count = response
             .domain_count_info
@@ -109,7 +111,40 @@ impl DnsProvider for DnspodProvider {
         ))
     }
 
+    /// RequireCheck: 使用 DescribeDomain API 直接获取域名信息
+    /// 注意：DNSPod API 需要域名名称，如果传入的是数字 ID 则 fallback 到列表查找
     async fn get_domain(&self, domain_id: &str) -> Result<ProviderDomain> {
+        // 如果 domain_id 包含 '.'，认为是域名名称，直接调用 API
+        if domain_id.contains('.') {
+            #[derive(Serialize)]
+            struct DescribeDomainRequest {
+                #[serde(rename = "Domain")]
+                domain: String,
+            }
+
+            let req = DescribeDomainRequest {
+                domain: domain_id.to_string(),
+            };
+
+            let ctx = ErrorContext {
+                domain: Some(domain_id.to_string()),
+                ..Default::default()
+            };
+
+            let response: DescribeDomainResponse =
+                self.request("DescribeDomain", &req, ctx).await?;
+            let info = response.domain_info;
+
+            return Ok(ProviderDomain {
+                id: info.domain_id.to_string(),
+                name: info.domain,
+                provider: ProviderType::Dnspod,
+                status: Self::convert_domain_status(&info.status, &info.dns_status),
+                record_count: info.record_count,
+            });
+        }
+
+        // Fallback: 数字 ID，从列表中查找
         let params = PaginationParams {
             page: 1,
             page_size: 100,
@@ -160,7 +195,13 @@ impl DnsProvider for DnspodProvider {
                 .map(|t| record_type_to_string(t).to_string()),
         };
 
-        let response: Result<RecordListResponse> = self.request("DescribeRecordList", &req).await;
+        let ctx = ErrorContext {
+            domain: Some(domain_id.to_string()),
+            ..Default::default()
+        };
+
+        let response: Result<RecordListResponse> =
+            self.request("DescribeRecordList", &req, ctx).await;
 
         match response {
             Ok(data) => {
@@ -242,7 +283,14 @@ impl DnsProvider for DnspodProvider {
             mx: req.priority,
         };
 
-        let response: CreateRecordResponse = self.request("CreateRecord", &api_req).await?;
+        let ctx = ErrorContext {
+            record_name: Some(req.name.clone()),
+            domain: Some(req.domain_id.clone()),
+            ..Default::default()
+        };
+
+        let response: CreateRecordResponse =
+            self.request("CreateRecord", &api_req, ctx).await?;
 
         let now = chrono::Utc::now().to_rfc3339();
         Ok(DnsRecord {
@@ -305,7 +353,14 @@ impl DnsProvider for DnspodProvider {
             mx: req.priority,
         };
 
-        let _response: ModifyRecordResponse = self.request("ModifyRecord", &api_req).await?;
+        let ctx = ErrorContext {
+            record_name: Some(req.name.clone()),
+            record_id: Some(record_id.to_string()),
+            domain: Some(req.domain_id.clone()),
+        };
+
+        let _response: ModifyRecordResponse =
+            self.request("ModifyRecord", &api_req, ctx).await?;
 
         let now = chrono::Utc::now().to_rfc3339();
         Ok(DnsRecord {
@@ -349,7 +404,14 @@ impl DnsProvider for DnspodProvider {
             record_id: record_id_num,
         };
 
-        let _response: DeleteRecordResponse = self.request("DeleteRecord", &api_req).await?;
+        let ctx = ErrorContext {
+            record_id: Some(record_id.to_string()),
+            domain: Some(domain_id.to_string()),
+            ..Default::default()
+        };
+
+        let _response: DeleteRecordResponse =
+            self.request("DeleteRecord", &api_req, ctx).await?;
 
         Ok(())
     }

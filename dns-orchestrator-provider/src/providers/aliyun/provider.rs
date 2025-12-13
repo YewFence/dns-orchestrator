@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::error::{ProviderError, Result};
 use crate::providers::common::{parse_record_type, record_type_to_string};
-use crate::traits::{DnsProvider, ProviderErrorMapper};
+use crate::traits::{DnsProvider, ErrorContext};
 use crate::types::{
     CreateDnsRecordRequest, DnsRecord, DomainStatus, PaginatedResponse, PaginationParams,
     ProviderDomain, ProviderType, RecordQueryParams, UpdateDnsRecordRequest,
@@ -14,8 +14,8 @@ use crate::types::{
 
 use super::{
     AddDomainRecordResponse, AliyunProvider, DeleteDomainRecordResponse,
-    DescribeDomainRecordsResponse, DescribeDomainsResponse, MAX_PAGE_SIZE,
-    UpdateDomainRecordResponse,
+    DescribeDomainInfoResponse, DescribeDomainRecordsResponse, DescribeDomainsResponse,
+    MAX_PAGE_SIZE, UpdateDomainRecordResponse,
 };
 
 impl AliyunProvider {
@@ -57,7 +57,7 @@ impl DnsProvider for AliyunProvider {
         };
 
         match self
-            .request::<DescribeDomainsResponse, _>("DescribeDomains", &req)
+            .request::<DescribeDomainsResponse, _>("DescribeDomains", &req, ErrorContext::default())
             .await
         {
             Ok(_) => Ok(true),
@@ -86,7 +86,9 @@ impl DnsProvider for AliyunProvider {
             page_size: params.page_size.min(MAX_PAGE_SIZE),
         };
 
-        let response: DescribeDomainsResponse = self.request("DescribeDomains", &req).await?;
+        let response: DescribeDomainsResponse = self
+            .request("DescribeDomains", &req, ErrorContext::default())
+            .await?;
 
         let total_count = response.total_count.unwrap_or(0);
         let domains = response
@@ -111,24 +113,36 @@ impl DnsProvider for AliyunProvider {
         ))
     }
 
+    /// RequireCheck: 使用 DescribeDomainInfo API 直接获取域名信息
+    /// 注意：阿里云 API 需要域名名称作为参数，这里假设 domain_id 就是域名名称
     async fn get_domain(&self, domain_id: &str) -> Result<ProviderDomain> {
-        // 阿里云 API 需要域名名称，先从域名列表中查找
-        // 使用大页面一次性获取用于查找
-        let params = PaginationParams {
-            page: 1,
-            page_size: 100,
-        };
-        let response = self.list_domains(&params).await?;
+        #[derive(Serialize)]
+        struct DescribeDomainInfoRequest {
+            #[serde(rename = "DomainName")]
+            domain_name: String,
+        }
 
-        response
-            .items
-            .into_iter()
-            .find(|d| d.id == domain_id || d.name == domain_id)
-            .ok_or_else(|| ProviderError::DomainNotFound {
-                provider: self.provider_name().to_string(),
-                domain: domain_id.to_string(),
-                raw_message: None,
-            })
+        let req = DescribeDomainInfoRequest {
+            domain_name: domain_id.to_string(),
+        };
+
+        let ctx = ErrorContext {
+            domain: Some(domain_id.to_string()),
+            ..Default::default()
+        };
+
+        let response: DescribeDomainInfoResponse =
+            self.request("DescribeDomainInfo", &req, ctx).await?;
+
+        Ok(ProviderDomain {
+            id: response
+                .domain_id
+                .unwrap_or_else(|| response.domain_name.clone()),
+            name: response.domain_name,
+            provider: ProviderType::Aliyun,
+            status: Self::convert_domain_status(response.domain_status.as_deref()),
+            record_count: response.record_count,
+        })
     }
 
     async fn list_records(
@@ -166,8 +180,13 @@ impl DnsProvider for AliyunProvider {
                 .map(|t| record_type_to_string(t).to_string()),
         };
 
+        let ctx = ErrorContext {
+            domain: Some(domain_id.to_string()),
+            ..Default::default()
+        };
+
         let response: DescribeDomainRecordsResponse =
-            self.request("DescribeDomainRecords", &req).await?;
+            self.request("DescribeDomainRecords", &req, ctx).await?;
 
         let total_count = response.total_count.unwrap_or(0);
         let records = response
@@ -229,7 +248,14 @@ impl DnsProvider for AliyunProvider {
             priority: req.priority,
         };
 
-        let response: AddDomainRecordResponse = self.request("AddDomainRecord", &api_req).await?;
+        let ctx = ErrorContext {
+            record_name: Some(req.name.clone()),
+            domain: Some(req.domain_id.clone()),
+            ..Default::default()
+        };
+
+        let response: AddDomainRecordResponse =
+            self.request("AddDomainRecord", &api_req, ctx).await?;
 
         let now = chrono::Utc::now().to_rfc3339();
         Ok(DnsRecord {
@@ -276,8 +302,14 @@ impl DnsProvider for AliyunProvider {
             priority: req.priority,
         };
 
+        let ctx = ErrorContext {
+            record_name: Some(req.name.clone()),
+            record_id: Some(record_id.to_string()),
+            domain: Some(req.domain_id.clone()),
+        };
+
         let _response: UpdateDomainRecordResponse =
-            self.request("UpdateDomainRecord", &api_req).await?;
+            self.request("UpdateDomainRecord", &api_req, ctx).await?;
 
         let now = chrono::Utc::now().to_rfc3339();
         Ok(DnsRecord {
@@ -294,7 +326,7 @@ impl DnsProvider for AliyunProvider {
         })
     }
 
-    async fn delete_record(&self, record_id: &str, _domain_id: &str) -> Result<()> {
+    async fn delete_record(&self, record_id: &str, domain_id: &str) -> Result<()> {
         #[derive(Serialize)]
         struct DeleteDomainRecordRequest {
             #[serde(rename = "RecordId")]
@@ -305,8 +337,14 @@ impl DnsProvider for AliyunProvider {
             record_id: record_id.to_string(),
         };
 
+        let ctx = ErrorContext {
+            record_id: Some(record_id.to_string()),
+            domain: Some(domain_id.to_string()),
+            ..Default::default()
+        };
+
         let _response: DeleteDomainRecordResponse =
-            self.request("DeleteDomainRecord", &api_req).await?;
+            self.request("DeleteDomainRecord", &api_req, ctx).await?;
 
         Ok(())
     }

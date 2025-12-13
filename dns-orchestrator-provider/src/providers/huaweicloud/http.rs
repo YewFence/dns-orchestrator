@@ -4,7 +4,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{ProviderError, Result};
-use crate::traits::{ProviderErrorMapper, RawApiError};
+use crate::traits::{ErrorContext, ProviderErrorMapper, RawApiError};
 
 use super::types::ErrorResponse;
 use super::{HUAWEICLOUD_DNS_HOST, HuaweicloudProvider};
@@ -15,6 +15,7 @@ impl HuaweicloudProvider {
         &self,
         path: &str,
         query: &str,
+        ctx: ErrorContext,
     ) -> Result<T> {
         let now = Utc::now();
         let timestamp = now.format("%Y%m%dT%H%M%SZ").to_string();
@@ -59,7 +60,7 @@ impl HuaweicloudProvider {
                         error.error_code.unwrap_or_default(),
                         error.error_msg.unwrap_or_default(),
                     ),
-                    Default::default(),
+                    ctx,
                 ));
             }
             return Err(
@@ -78,6 +79,7 @@ impl HuaweicloudProvider {
         &self,
         path: &str,
         body: &B,
+        ctx: ErrorContext,
     ) -> Result<T> {
         let payload =
             serde_json::to_string(body).map_err(|e| ProviderError::SerializationError {
@@ -126,7 +128,7 @@ impl HuaweicloudProvider {
                         error.error_code.unwrap_or_default(),
                         error.error_msg.unwrap_or_default(),
                     ),
-                    Default::default(),
+                    ctx,
                 ));
             }
             return Err(
@@ -145,6 +147,7 @@ impl HuaweicloudProvider {
         &self,
         path: &str,
         body: &B,
+        ctx: ErrorContext,
     ) -> Result<T> {
         let payload =
             serde_json::to_string(body).map_err(|e| ProviderError::SerializationError {
@@ -193,7 +196,7 @@ impl HuaweicloudProvider {
                         error.error_code.unwrap_or_default(),
                         error.error_msg.unwrap_or_default(),
                     ),
-                    Default::default(),
+                    ctx,
                 ));
             }
             return Err(
@@ -208,7 +211,7 @@ impl HuaweicloudProvider {
     }
 
     /// 执行 DELETE 请求
-    pub(crate) async fn delete(&self, path: &str) -> Result<()> {
+    pub(crate) async fn delete(&self, path: &str, ctx: ErrorContext) -> Result<()> {
         let now = Utc::now();
         let timestamp = now.format("%Y%m%dT%H%M%SZ").to_string();
 
@@ -246,7 +249,7 @@ impl HuaweicloudProvider {
                         error.error_code.unwrap_or_default(),
                         error.error_msg.unwrap_or_default(),
                     ),
-                    Default::default(),
+                    ctx,
                 ));
             }
             return Err(

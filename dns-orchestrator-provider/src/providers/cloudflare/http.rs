@@ -12,7 +12,11 @@ use super::{
 
 impl CloudflareProvider {
     /// 执行 GET 请求
-    pub(crate) async fn get<T: for<'de> Deserialize<'de>>(&self, path: &str) -> Result<T> {
+    pub(crate) async fn get<T: for<'de> Deserialize<'de>>(
+        &self,
+        path: &str,
+        ctx: ErrorContext,
+    ) -> Result<T> {
         let url = format!("{CF_API_BASE}{path}");
         log::debug!("GET {url}");
 
@@ -51,10 +55,7 @@ impl CloudflareProvider {
                 })
                 .unwrap_or_else(|| (String::new(), "Unknown error".to_string()));
             log::error!("API 错误: {message}");
-            return Err(self.map_error(
-                RawApiError::with_code(code, message),
-                ErrorContext::default(),
-            ));
+            return Err(self.map_error(RawApiError::with_code(code, message), ctx));
         }
 
         cf_response
@@ -67,6 +68,7 @@ impl CloudflareProvider {
         &self,
         path: &str,
         params: &PaginationParams,
+        ctx: ErrorContext,
     ) -> Result<(Vec<T>, u32)> {
         // Cloudflare zones API 最大 per_page 是 50
         let url = format!(
@@ -113,10 +115,7 @@ impl CloudflareProvider {
                 })
                 .unwrap_or_else(|| (String::new(), "Unknown error".to_string()));
             log::error!("API 错误: {message}");
-            return Err(self.map_error(
-                RawApiError::with_code(code, message),
-                ErrorContext::default(),
-            ));
+            return Err(self.map_error(RawApiError::with_code(code, message), ctx));
         }
 
         let total_count = cf_response.result_info.map_or(0, |i| i.total_count);
@@ -126,7 +125,11 @@ impl CloudflareProvider {
     }
 
     /// 执行 GET 请求 (带自定义 URL，用于 list_records)
-    pub(crate) async fn get_records(&self, url: &str) -> Result<(Vec<CloudflareDnsRecord>, u32)> {
+    pub(crate) async fn get_records(
+        &self,
+        url: &str,
+        ctx: ErrorContext,
+    ) -> Result<(Vec<CloudflareDnsRecord>, u32)> {
         log::debug!("GET {CF_API_BASE}{url}");
 
         let response = self
@@ -154,10 +157,7 @@ impl CloudflareProvider {
                         .map(|e| (e.code.to_string(), e.message.clone()))
                 })
                 .unwrap_or_else(|| (String::new(), "Unknown error".to_string()));
-            return Err(self.map_error(
-                RawApiError::with_code(code, message),
-                ErrorContext::default(),
-            ));
+            return Err(self.map_error(RawApiError::with_code(code, message), ctx));
         }
 
         let total_count = cf_response.result_info.map_or(0, |i| i.total_count);
@@ -171,6 +171,7 @@ impl CloudflareProvider {
         &self,
         path: &str,
         body: &B,
+        ctx: ErrorContext,
     ) -> Result<T> {
         let url = format!("{CF_API_BASE}{path}");
         let body_json =
@@ -214,10 +215,7 @@ impl CloudflareProvider {
                 })
                 .unwrap_or_else(|| (String::new(), "Unknown error".to_string()));
             log::error!("API 错误: {message}");
-            return Err(self.map_error(
-                RawApiError::with_code(code, message),
-                ErrorContext::default(),
-            ));
+            return Err(self.map_error(RawApiError::with_code(code, message), ctx));
         }
 
         cf_response
@@ -230,6 +228,7 @@ impl CloudflareProvider {
         &self,
         path: &str,
         body: &B,
+        ctx: ErrorContext,
     ) -> Result<T> {
         let url = format!("{CF_API_BASE}{path}");
         let body_json =
@@ -273,10 +272,7 @@ impl CloudflareProvider {
                 })
                 .unwrap_or_else(|| (String::new(), "Unknown error".to_string()));
             log::error!("API 错误: {message}");
-            return Err(self.map_error(
-                RawApiError::with_code(code, message),
-                ErrorContext::default(),
-            ));
+            return Err(self.map_error(RawApiError::with_code(code, message), ctx));
         }
 
         cf_response
@@ -285,7 +281,7 @@ impl CloudflareProvider {
     }
 
     /// 执行 DELETE 请求
-    pub(crate) async fn delete(&self, path: &str) -> Result<()> {
+    pub(crate) async fn delete(&self, path: &str, ctx: ErrorContext) -> Result<()> {
         let url = format!("{CF_API_BASE}{path}");
         log::debug!("DELETE {url}");
 
@@ -324,10 +320,7 @@ impl CloudflareProvider {
                 })
                 .unwrap_or_else(|| (String::new(), "Unknown error".to_string()));
             log::error!("API 错误: {message}");
-            return Err(self.map_error(
-                RawApiError::with_code(code, message),
-                ErrorContext::default(),
-            ));
+            return Err(self.map_error(RawApiError::with_code(code, message), ctx));
         }
 
         Ok(())

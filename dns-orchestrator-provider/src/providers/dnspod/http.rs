@@ -14,6 +14,7 @@ impl DnspodProvider {
         &self,
         action: &str,
         body: &B,
+        ctx: ErrorContext,
     ) -> Result<T> {
         let payload =
             serde_json::to_string(body).map_err(|e| ProviderError::SerializationError {
@@ -63,7 +64,7 @@ impl DnspodProvider {
             log::error!("API 错误: {} - {}", error.code, error.message);
             return Err(self.map_error(
                 RawApiError::with_code(&error.code, &error.message),
-                ErrorContext::default(),
+                ctx,
             ));
         }
 

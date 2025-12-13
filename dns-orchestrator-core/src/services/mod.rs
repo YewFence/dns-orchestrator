@@ -14,7 +14,11 @@ pub use toolbox::ToolboxService;
 
 use std::sync::Arc;
 
+use dns_orchestrator_provider::DnsProvider;
+
+use crate::error::{CoreError, CoreResult};
 use crate::traits::{AccountRepository, CredentialStore, ProviderRegistry};
+use crate::types::AccountStatus;
 
 /// 服务上下文 - 持有所有依赖
 ///
@@ -41,5 +45,26 @@ impl ServiceContext {
             account_repository,
             provider_registry,
         }
+    }
+
+    /// 获取 Provider 实例
+    pub async fn get_provider(&self, account_id: &str) -> CoreResult<Arc<dyn DnsProvider>> {
+        self.provider_registry
+            .get(account_id)
+            .await
+            .ok_or_else(|| CoreError::AccountNotFound(account_id.to_string()))
+    }
+
+    /// 标记账户为无效状态
+    pub async fn mark_account_invalid(&self, account_id: &str, error_msg: &str) {
+        let _ = self
+            .account_repository
+            .update_status(
+                account_id,
+                AccountStatus::Error,
+                Some(error_msg.to_string()),
+            )
+            .await;
+        log::warn!("Account {account_id} marked as invalid: {error_msg}");
     }
 }

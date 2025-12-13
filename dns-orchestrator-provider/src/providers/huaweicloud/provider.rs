@@ -8,7 +8,7 @@ use crate::providers::common::{
     full_name_to_relative, normalize_domain_name, parse_record_type, record_type_to_string,
     relative_to_full_name,
 };
-use crate::traits::{DnsProvider, ProviderErrorMapper};
+use crate::traits::{DnsProvider, ErrorContext};
 use crate::types::{
     CreateDnsRecordRequest, DnsRecord, DnsRecordType, DomainStatus, PaginatedResponse,
     PaginationParams, ProviderDomain, ProviderType, RecordQueryParams, UpdateDnsRecordRequest,
@@ -16,7 +16,9 @@ use crate::types::{
 
 use super::HuaweicloudProvider;
 use super::MAX_PAGE_SIZE;
-use super::types::{CreateRecordSetResponse, ListRecordSetsResponse, ListZonesResponse};
+use super::types::{
+    CreateRecordSetResponse, ListRecordSetsResponse, ListZonesResponse, ShowPublicZoneResponse,
+};
 
 impl HuaweicloudProvider {
     /// 将华为云域名状态转换为内部状态
@@ -46,7 +48,7 @@ impl DnsProvider for HuaweicloudProvider {
 
     async fn validate_credentials(&self) -> Result<bool> {
         match self
-            .get::<ListZonesResponse>("/v2/zones", "type=public&limit=1")
+            .get::<ListZonesResponse>("/v2/zones", "type=public&limit=1", ErrorContext::default())
             .await
         {
             Ok(_) => Ok(true),
@@ -67,7 +69,9 @@ impl DnsProvider for HuaweicloudProvider {
         let limit = params.page_size.min(MAX_PAGE_SIZE);
         let query = format!("type=public&offset={offset}&limit={limit}");
 
-        let response: ListZonesResponse = self.get("/v2/zones", &query).await?;
+        let response: ListZonesResponse = self
+            .get("/v2/zones", &query, ErrorContext::default())
+            .await?;
 
         let total_count = response.metadata.and_then(|m| m.total_count).unwrap_or(0);
 
@@ -92,23 +96,22 @@ impl DnsProvider for HuaweicloudProvider {
         ))
     }
 
+    /// RequireCheck: 使用 ShowPublicZone API 直接获取域名信息
     async fn get_domain(&self, domain_id: &str) -> Result<ProviderDomain> {
-        // 使用大页面一次性获取用于查找
-        let params = PaginationParams {
-            page: 1,
-            page_size: 100,
+        let path = format!("/v2/zones/{domain_id}");
+        let ctx = ErrorContext {
+            domain: Some(domain_id.to_string()),
+            ..Default::default()
         };
-        let response = self.list_domains(&params).await?;
+        let response: ShowPublicZoneResponse = self.get(&path, "", ctx).await?;
 
-        response
-            .items
-            .into_iter()
-            .find(|d| d.id == domain_id || d.name == domain_id)
-            .ok_or_else(|| ProviderError::DomainNotFound {
-                provider: self.provider_name().to_string(),
-                domain: domain_id.to_string(),
-                raw_message: None,
-            })
+        Ok(ProviderDomain {
+            id: response.id,
+            name: normalize_domain_name(&response.name),
+            provider: ProviderType::Huaweicloud,
+            status: Self::convert_domain_status(response.status.as_deref()),
+            record_count: response.record_num,
+        })
     }
 
     async fn list_records(
@@ -138,7 +141,11 @@ impl DnsProvider for HuaweicloudProvider {
         }
 
         let path = format!("/v2/zones/{domain_id}/recordsets");
-        let response: ListRecordSetsResponse = self.get(&path, &query).await?;
+        let ctx = ErrorContext {
+            domain: Some(domain_id.to_string()),
+            ..Default::default()
+        };
+        let response: ListRecordSetsResponse = self.get(&path, &query, ctx).await?;
 
         let total_count = response.metadata.and_then(|m| m.total_count).unwrap_or(0);
 
@@ -221,7 +228,12 @@ impl DnsProvider for HuaweicloudProvider {
         };
 
         let path = format!("/v2/zones/{}/recordsets", req.domain_id);
-        let response: CreateRecordSetResponse = self.post(&path, &api_req).await?;
+        let ctx = ErrorContext {
+            record_name: Some(req.name.clone()),
+            domain: Some(req.domain_id.clone()),
+            ..Default::default()
+        };
+        let response: CreateRecordSetResponse = self.post(&path, &api_req, ctx).await?;
 
         let now = chrono::Utc::now().to_rfc3339();
         Ok(DnsRecord {
@@ -273,7 +285,12 @@ impl DnsProvider for HuaweicloudProvider {
         };
 
         let path = format!("/v2/zones/{}/recordsets/{}", req.domain_id, record_id);
-        let _response: CreateRecordSetResponse = self.put(&path, &api_req).await?;
+        let ctx = ErrorContext {
+            record_name: Some(req.name.clone()),
+            record_id: Some(record_id.to_string()),
+            domain: Some(req.domain_id.clone()),
+        };
+        let _response: CreateRecordSetResponse = self.put(&path, &api_req, ctx).await?;
 
         let now = chrono::Utc::now().to_rfc3339();
         Ok(DnsRecord {
@@ -292,6 +309,11 @@ impl DnsProvider for HuaweicloudProvider {
 
     async fn delete_record(&self, record_id: &str, domain_id: &str) -> Result<()> {
         let path = format!("/v2/zones/{domain_id}/recordsets/{record_id}");
-        self.delete(&path).await
+        let ctx = ErrorContext {
+            record_id: Some(record_id.to_string()),
+            domain: Some(domain_id.to_string()),
+            ..Default::default()
+        };
+        self.delete(&path, ctx).await
     }
 }

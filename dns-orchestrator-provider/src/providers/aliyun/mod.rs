@@ -12,8 +12,8 @@ use crate::providers::common::create_http_client;
 
 pub(crate) use types::{
     AddDomainRecordResponse, AliyunResponse, DeleteDomainRecordResponse,
-    DescribeDomainRecordsResponse, DescribeDomainsResponse, UpdateDomainRecordResponse,
-    serialize_to_query_string,
+    DescribeDomainInfoResponse, DescribeDomainRecordsResponse, DescribeDomainsResponse,
+    UpdateDomainRecordResponse, serialize_to_query_string,
 };
 
 pub(crate) const ALIYUN_DNS_HOST: &str = "alidns.cn-hangzhou.aliyuncs.com";

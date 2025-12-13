@@ -59,6 +59,28 @@ pub struct DnspodDomain {
     pub record_count: Option<u32>,
 }
 
+/// RequireCheck: DescribeDomain API 响应结构，需验证字段映射是否正确
+#[derive(Debug, Deserialize)]
+pub struct DescribeDomainResponse {
+    #[serde(rename = "DomainInfo")]
+    pub domain_info: DescribeDomainInfo,
+}
+
+/// RequireCheck: DomainInfo 嵌套结构
+#[derive(Debug, Deserialize)]
+pub struct DescribeDomainInfo {
+    #[serde(rename = "DomainId")]
+    pub domain_id: u64,
+    #[serde(rename = "Domain")]
+    pub domain: String,
+    #[serde(rename = "Status")]
+    pub status: String,
+    #[serde(rename = "DNSStatus")]
+    pub dns_status: String,
+    #[serde(rename = "RecordCount")]
+    pub record_count: Option<u32>,
+}
+
 // ============ DNSPod 记录相关结构 ============
 
 #[derive(Debug, Deserialize)]
