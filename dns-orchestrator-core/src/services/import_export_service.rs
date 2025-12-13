@@ -26,6 +26,58 @@ impl ImportExportService {
         Self { ctx }
     }
 
+    /// 解析并解密导出文件，返回账户列表
+    fn parse_and_decrypt_accounts(
+        content: &str,
+        password: Option<&str>,
+    ) -> CoreResult<(ExportFile, Option<Vec<ExportedAccount>>)> {
+        // 1. 解析文件
+        let export_file: ExportFile = serde_json::from_str(content)
+            .map_err(|e| CoreError::ImportExportError(format!("无效的导入文件: {e}")))?;
+
+        // 2. 检查版本
+        if export_file.header.version > 1 {
+            return Err(CoreError::UnsupportedFileVersion);
+        }
+
+        // 3. 如果加密但未提供密码，返回 None 表示需要密码
+        if export_file.header.encrypted && password.is_none() {
+            return Ok((export_file, None));
+        }
+
+        // 4. 解密或直接解析账号数据
+        let accounts: Vec<ExportedAccount> = if export_file.header.encrypted {
+            let password = password
+                .ok_or_else(|| CoreError::ImportExportError("加密文件需要提供密码".to_string()))?;
+            let ciphertext = export_file
+                .data
+                .as_str()
+                .ok_or_else(|| CoreError::ImportExportError("无效的加密数据".to_string()))?;
+            let salt = export_file
+                .header
+                .salt
+                .as_ref()
+                .ok_or_else(|| CoreError::ImportExportError("缺少加密盐值".to_string()))?;
+            let nonce = export_file
+                .header
+                .nonce
+                .as_ref()
+                .ok_or_else(|| CoreError::ImportExportError("缺少加密 nonce".to_string()))?;
+
+            let plaintext = crypto::decrypt(ciphertext, password, salt, nonce).map_err(|_| {
+                CoreError::ImportExportError("解密失败，请检查密码是否正确".to_string())
+            })?;
+
+            serde_json::from_slice(&plaintext)
+                .map_err(|e| CoreError::ImportExportError(format!("解析账号数据失败: {e}")))?
+        } else {
+            serde_json::from_value(export_file.data.clone())
+                .map_err(|e| CoreError::ImportExportError(format!("解析账号数据失败: {e}")))?
+        };
+
+        Ok((export_file, Some(accounts)))
+    }
+
     /// 导出账户
     ///
     /// # Arguments
@@ -133,55 +185,19 @@ impl ImportExportService {
         content: &str,
         password: Option<&str>,
     ) -> CoreResult<ImportPreview> {
-        // 1. 解析文件
-        let export_file: ExportFile = serde_json::from_str(content)
-            .map_err(|e| CoreError::ImportExportError(format!("无效的导入文件: {e}")))?;
+        // 1. 解析并解密
+        let (export_file, accounts_opt) = Self::parse_and_decrypt_accounts(content, password)?;
 
-        // 2. 检查版本
-        if export_file.header.version > 1 {
-            return Err(CoreError::UnsupportedFileVersion);
-        }
-
-        // 3. 如果加密但未提供密码，返回需要密码的提示
-        if export_file.header.encrypted && password.is_none() {
+        // 2. 如果需要密码但未提供，返回提示
+        let Some(accounts) = accounts_opt else {
             return Ok(ImportPreview {
                 encrypted: true,
                 account_count: 0,
                 accounts: None,
             });
-        }
-
-        // 4. 解密或直接解析账号数据
-        let accounts: Vec<ExportedAccount> = if export_file.header.encrypted {
-            let password = password
-                .ok_or_else(|| CoreError::ImportExportError("加密文件需要提供密码".to_string()))?;
-            let ciphertext = export_file
-                .data
-                .as_str()
-                .ok_or_else(|| CoreError::ImportExportError("无效的加密数据".to_string()))?;
-            let salt = export_file
-                .header
-                .salt
-                .as_ref()
-                .ok_or_else(|| CoreError::ImportExportError("缺少加密盐值".to_string()))?;
-            let nonce = export_file
-                .header
-                .nonce
-                .as_ref()
-                .ok_or_else(|| CoreError::ImportExportError("缺少加密 nonce".to_string()))?;
-
-            let plaintext = crypto::decrypt(ciphertext, password, salt, nonce).map_err(|_| {
-                CoreError::ImportExportError("解密失败，请检查密码是否正确".to_string())
-            })?;
-
-            serde_json::from_slice(&plaintext)
-                .map_err(|e| CoreError::ImportExportError(format!("解析账号数据失败: {e}")))?
-        } else {
-            serde_json::from_value(export_file.data)
-                .map_err(|e| CoreError::ImportExportError(format!("解析账号数据失败: {e}")))?
         };
 
-        // 5. 检查与现有账号的冲突
+        // 3. 检查与现有账号的冲突
         let existing_accounts = self.ctx.account_repository.find_all().await?;
         let existing_names: HashSet<_> =
             existing_accounts.iter().map(|a| a.name.as_str()).collect();
@@ -208,39 +224,11 @@ impl ImportExportService {
         request: ImportAccountsRequest,
     ) -> CoreResult<ImportResult> {
         // 1. 解析和解密
-        let export_file: ExportFile = serde_json::from_str(&request.content)
-            .map_err(|e| CoreError::ImportExportError(format!("无效的导入文件: {e}")))?;
+        let (_, accounts_opt) =
+            Self::parse_and_decrypt_accounts(&request.content, request.password.as_deref())?;
 
-        let accounts: Vec<ExportedAccount> = if export_file.header.encrypted {
-            let password = request
-                .password
-                .as_ref()
-                .ok_or_else(|| CoreError::ImportExportError("加密文件需要提供密码".to_string()))?;
-            let ciphertext = export_file
-                .data
-                .as_str()
-                .ok_or_else(|| CoreError::ImportExportError("无效的加密数据".to_string()))?;
-            let salt = export_file
-                .header
-                .salt
-                .as_ref()
-                .ok_or_else(|| CoreError::ImportExportError("缺少加密盐值".to_string()))?;
-            let nonce = export_file
-                .header
-                .nonce
-                .as_ref()
-                .ok_or_else(|| CoreError::ImportExportError("缺少加密 nonce".to_string()))?;
-
-            let plaintext = crypto::decrypt(ciphertext, password, salt, nonce).map_err(|_| {
-                CoreError::ImportExportError("解密失败，请检查密码是否正确".to_string())
-            })?;
-
-            serde_json::from_slice(&plaintext)
-                .map_err(|e| CoreError::ImportExportError(format!("解析账号数据失败: {e}")))?
-        } else {
-            serde_json::from_value(export_file.data)
-                .map_err(|e| CoreError::ImportExportError(format!("解析账号数据失败: {e}")))?
-        };
+        let accounts = accounts_opt
+            .ok_or_else(|| CoreError::ImportExportError("加密文件需要提供密码".to_string()))?;
 
         // 2. 逐个导入账号
         let mut success_count = 0;

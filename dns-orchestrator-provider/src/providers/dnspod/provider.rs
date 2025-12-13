@@ -289,8 +289,7 @@ impl DnsProvider for DnspodProvider {
             ..Default::default()
         };
 
-        let response: CreateRecordResponse =
-            self.request("CreateRecord", &api_req, ctx).await?;
+        let response: CreateRecordResponse = self.request("CreateRecord", &api_req, ctx).await?;
 
         let now = chrono::Utc::now().to_rfc3339();
         Ok(DnsRecord {
@@ -359,8 +358,7 @@ impl DnsProvider for DnspodProvider {
             domain: Some(req.domain_id.clone()),
         };
 
-        let _response: ModifyRecordResponse =
-            self.request("ModifyRecord", &api_req, ctx).await?;
+        let _response: ModifyRecordResponse = self.request("ModifyRecord", &api_req, ctx).await?;
 
         let now = chrono::Utc::now().to_rfc3339();
         Ok(DnsRecord {
@@ -410,8 +408,7 @@ impl DnsProvider for DnspodProvider {
             ..Default::default()
         };
 
-        let _response: DeleteRecordResponse =
-            self.request("DeleteRecord", &api_req, ctx).await?;
+        let _response: DeleteRecordResponse = self.request("DeleteRecord", &api_req, ctx).await?;
 
         Ok(())
     }

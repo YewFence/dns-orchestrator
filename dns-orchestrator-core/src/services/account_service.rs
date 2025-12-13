@@ -79,7 +79,9 @@ impl AccountService {
         if let Err(e) = self.ctx.account_repository.save(&account).await {
             log::error!("Failed to save account metadata, cleaning up: {e}");
             // Cleanup: 删除凭证和注销 provider
-            let _ = self.ctx.credential_store.delete(&account_id).await;
+            if let Err(cleanup_err) = self.ctx.credential_store.delete(&account_id).await {
+                log::warn!("Cleanup: failed to delete credentials for {account_id}: {cleanup_err}");
+            }
             self.ctx.provider_registry.unregister(&account_id).await;
             return Err(e);
         }
@@ -101,8 +103,10 @@ impl AccountService {
         // 2. 注销 provider
         self.ctx.provider_registry.unregister(account_id).await;
 
-        // 3. 删除凭证 (忽略错误，凭证可能不存在)
-        let _ = self.ctx.credential_store.delete(account_id).await;
+        // 3. 删除凭证
+        if let Err(e) = self.ctx.credential_store.delete(account_id).await {
+            log::warn!("Failed to delete credentials for {account_id}: {e}");
+        }
 
         // 4. 删除账号元数据
         self.ctx.account_repository.delete(account_id).await?;
@@ -133,11 +137,17 @@ impl AccountService {
                 log::error!("Failed to load credentials: {e}");
                 // 标记所有账户为错误状态
                 for account in accounts.iter() {
-                    let _ = self
+                    if let Err(update_err) = self
                         .ctx
                         .account_repository
                         .update_status(&account.id, AccountStatus::Error, Some(e.to_string()))
-                        .await;
+                        .await
+                    {
+                        log::warn!(
+                            "Failed to update status for account {}: {update_err}",
+                            account.id
+                        );
+                    }
                 }
                 return Ok(RestoreResult {
                     success_count: 0,
@@ -150,7 +160,7 @@ impl AccountService {
         for account in accounts.iter() {
             let Some(credentials) = all_credentials.get(&account.id) else {
                 log::warn!("No credentials found for account: {}", account.id);
-                let _ = self
+                if let Err(e) = self
                     .ctx
                     .account_repository
                     .update_status(
@@ -158,7 +168,10 @@ impl AccountService {
                         AccountStatus::Error,
                         Some("凭证不存在".to_string()),
                     )
-                    .await;
+                    .await
+                {
+                    log::warn!("Failed to update status for account {}: {e}", account.id);
+                }
                 error_count += 1;
                 continue;
             };
@@ -169,7 +182,7 @@ impl AccountService {
                     Ok(c) => c,
                     Err(e) => {
                         log::warn!("Invalid credentials for account {}: {}", account.id, e);
-                        let _ = self
+                        if let Err(update_err) = self
                             .ctx
                             .account_repository
                             .update_status(
@@ -177,7 +190,13 @@ impl AccountService {
                                 AccountStatus::Error,
                                 Some(format!("凭证格式错误: {e}")),
                             )
-                            .await;
+                            .await
+                        {
+                            log::warn!(
+                                "Failed to update status for account {}: {update_err}",
+                                account.id
+                            );
+                        }
                         error_count += 1;
                         continue;
                     }
@@ -191,7 +210,7 @@ impl AccountService {
                         account.id,
                         e
                     );
-                    let _ = self
+                    if let Err(update_err) = self
                         .ctx
                         .account_repository
                         .update_status(
@@ -199,7 +218,13 @@ impl AccountService {
                             AccountStatus::Error,
                             Some(format!("创建 Provider 失败: {e}")),
                         )
-                        .await;
+                        .await
+                    {
+                        log::warn!(
+                            "Failed to update status for account {}: {update_err}",
+                            account.id
+                        );
+                    }
                     error_count += 1;
                     continue;
                 }
@@ -212,11 +237,14 @@ impl AccountService {
                 .await;
 
             // 更新状态为 Active
-            let _ = self
+            if let Err(e) = self
                 .ctx
                 .account_repository
                 .update_status(&account.id, AccountStatus::Active, None)
-                .await;
+                .await
+            {
+                log::warn!("Failed to update status for account {}: {e}", account.id);
+            }
 
             success_count += 1;
         }

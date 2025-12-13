@@ -125,7 +125,9 @@ impl DnsService {
                 Err((record_id, e)) => {
                     // 检查是否是凭证失效
                     if let ProviderError::InvalidCredentials { .. } = &e {
-                        self.ctx.mark_account_invalid(account_id, "凭证已失效").await;
+                        self.ctx
+                            .mark_account_invalid(account_id, "凭证已失效")
+                            .await;
                     }
                     failures.push(BatchDeleteFailure {
                         record_id,
@@ -145,7 +147,9 @@ impl DnsService {
     /// 处理 Provider 错误，如果是凭证失效则更新账户状态
     async fn handle_provider_error(&self, account_id: &str, err: ProviderError) -> CoreError {
         if let ProviderError::InvalidCredentials { .. } = &err {
-            self.ctx.mark_account_invalid(account_id, "凭证已失效").await;
+            self.ctx
+                .mark_account_invalid(account_id, "凭证已失效")
+                .await;
         }
         CoreError::Provider(err)
     }

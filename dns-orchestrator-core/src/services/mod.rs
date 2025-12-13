@@ -57,14 +57,18 @@ impl ServiceContext {
 
     /// 标记账户为无效状态
     pub async fn mark_account_invalid(&self, account_id: &str, error_msg: &str) {
-        let _ = self
+        if let Err(e) = self
             .account_repository
             .update_status(
                 account_id,
                 AccountStatus::Error,
                 Some(error_msg.to_string()),
             )
-            .await;
+            .await
+        {
+            log::error!("Failed to mark account {account_id} as invalid: {e}");
+            return;
+        }
         log::warn!("Account {account_id} marked as invalid: {error_msg}");
     }
 }

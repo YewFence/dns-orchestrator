@@ -49,15 +49,7 @@ impl DomainService {
                     lib_response.total_count,
                 ))
             }
-            Err(ProviderError::InvalidCredentials { provider, .. }) => {
-                // 凭证失效，更新账户状态
-                self.ctx.mark_account_invalid(account_id, "凭证已失效").await;
-                Err(CoreError::Provider(ProviderError::InvalidCredentials {
-                    provider,
-                    raw_message: None,
-                }))
-            }
-            Err(e) => Err(CoreError::Provider(e)),
+            Err(e) => Err(self.handle_provider_error(account_id, e).await),
         }
     }
 
@@ -65,10 +57,22 @@ impl DomainService {
     pub async fn get_domain(&self, account_id: &str, domain_id: &str) -> CoreResult<AppDomain> {
         let provider = self.ctx.get_provider(account_id).await?;
 
-        let provider_domain = provider.get_domain(domain_id).await?;
-        Ok(AppDomain::from_provider(
-            provider_domain,
-            account_id.to_string(),
-        ))
+        match provider.get_domain(domain_id).await {
+            Ok(provider_domain) => Ok(AppDomain::from_provider(
+                provider_domain,
+                account_id.to_string(),
+            )),
+            Err(e) => Err(self.handle_provider_error(account_id, e).await),
+        }
+    }
+
+    /// 处理 Provider 错误，如果是凭证失效则更新账户状态
+    async fn handle_provider_error(&self, account_id: &str, err: ProviderError) -> CoreError {
+        if let ProviderError::InvalidCredentials { .. } = &err {
+            self.ctx
+                .mark_account_invalid(account_id, "凭证已失效")
+                .await;
+        }
+        CoreError::Provider(err)
     }
 }

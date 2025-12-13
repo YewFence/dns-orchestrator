@@ -62,10 +62,7 @@ impl DnspodProvider {
 
         if let Some(error) = tc_response.response.error {
             log::error!("API 错误: {} - {}", error.code, error.message);
-            return Err(self.map_error(
-                RawApiError::with_code(&error.code, &error.message),
-                ctx,
-            ));
+            return Err(self.map_error(RawApiError::with_code(&error.code, &error.message), ctx));
         }
 
         tc_response

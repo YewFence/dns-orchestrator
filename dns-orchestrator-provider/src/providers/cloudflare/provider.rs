@@ -4,7 +4,9 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
-use crate::providers::common::{full_name_to_relative, parse_record_type, record_type_to_string};
+use crate::providers::common::{
+    full_name_to_relative, parse_record_type, record_type_to_string, relative_to_full_name,
+};
 use crate::traits::{DnsProvider, ErrorContext, ProviderErrorMapper};
 use crate::types::{
     CreateDnsRecordRequest, DnsRecord, DomainStatus, PaginatedResponse, PaginationParams,
@@ -30,15 +32,6 @@ impl CloudflareProvider {
             provider: ProviderType::Cloudflare,
             status,
             record_count: None,
-        }
-    }
-
-    /// 将相对名称转换为完整域名 (用于 API 调用)
-    pub(crate) fn relative_to_full_name(&self, relative_name: &str, zone_name: &str) -> String {
-        if relative_name == "@" || relative_name.is_empty() {
-            zone_name.to_string()
-        } else {
-            format!("{relative_name}.{zone_name}")
         }
     }
 
@@ -177,7 +170,7 @@ impl DnsProvider for CloudflareProvider {
             .await?;
         let zone_name = zone.name;
 
-        let full_name = self.relative_to_full_name(&req.name, &zone_name);
+        let full_name = relative_to_full_name(&req.name, &zone_name);
 
         #[derive(Serialize)]
         struct CreateRecordBody {
@@ -225,7 +218,7 @@ impl DnsProvider for CloudflareProvider {
             .await?;
         let zone_name = zone.name;
 
-        let full_name = self.relative_to_full_name(&req.name, &zone_name);
+        let full_name = relative_to_full_name(&req.name, &zone_name);
 
         #[derive(Serialize)]
         struct UpdateRecordBody {
@@ -266,10 +259,7 @@ impl DnsProvider for CloudflareProvider {
             domain: Some(domain_id.to_string()),
             ..Default::default()
         };
-        self.delete(
-            &format!("/zones/{domain_id}/dns_records/{record_id}"),
-            ctx,
-        )
-        .await
+        self.delete(&format!("/zones/{domain_id}/dns_records/{record_id}"), ctx)
+            .await
     }
 }

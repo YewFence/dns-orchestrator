@@ -1,5 +1,6 @@
 //! Provider 公共工具函数
 
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use hmac::{Hmac, Mac};
@@ -18,13 +19,20 @@ const DEFAULT_CONNECT_TIMEOUT_SECS: u64 = 10;
 /// 默认请求超时（秒）
 const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 30;
 
-/// 创建带超时配置的 HTTP Client
+/// 全局共享的 HTTP Client
+static SHARED_HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
+
+/// 获取共享的 HTTP Client（懒初始化，线程安全）
 pub fn create_http_client() -> Client {
-    Client::builder()
-        .connect_timeout(Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
-        .timeout(Duration::from_secs(DEFAULT_REQUEST_TIMEOUT_SECS))
-        .build()
-        .expect("Failed to create HTTP client")
+    SHARED_HTTP_CLIENT
+        .get_or_init(|| {
+            Client::builder()
+                .connect_timeout(Duration::from_secs(DEFAULT_CONNECT_TIMEOUT_SECS))
+                .timeout(Duration::from_secs(DEFAULT_REQUEST_TIMEOUT_SECS))
+                .build()
+                .expect("Failed to create HTTP client")
+        })
+        .clone()
 }
 
 // ============ 记录类型转换 ============
