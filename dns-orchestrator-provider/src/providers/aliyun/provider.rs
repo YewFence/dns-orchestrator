@@ -97,7 +97,8 @@ impl DnsProvider for AliyunProvider {
             .unwrap_or_default()
             .into_iter()
             .map(|d| ProviderDomain {
-                id: d.domain_id.unwrap_or_else(|| d.domain_name.clone()),
+                // 阿里云 API 使用域名名称作为标识符，而非 domain_id
+                id: d.domain_name.clone(),
                 name: d.domain_name,
                 provider: ProviderType::Aliyun,
                 status: Self::convert_domain_status(d.domain_status.as_deref()),
@@ -114,7 +115,7 @@ impl DnsProvider for AliyunProvider {
     }
 
     /// ErrorRequireCheck: 使用 DescribeDomainInfo API 直接获取域名信息
-    /// 注意：阿里云 API 需要域名名称作为参数，这里假设 domain_id 就是域名名称
+    /// 注意：阿里云 API 需要域名名称作为参数
     async fn get_domain(&self, domain_id: &str) -> Result<ProviderDomain> {
         #[derive(Serialize)]
         struct DescribeDomainInfoRequest {
@@ -135,9 +136,8 @@ impl DnsProvider for AliyunProvider {
             self.request("DescribeDomainInfo", &req, ctx).await?;
 
         Ok(ProviderDomain {
-            id: response
-                .domain_id
-                .unwrap_or_else(|| response.domain_name.clone()),
+            // 统一使用域名名称作为 ID，与 list_domains 保持一致
+            id: response.domain_name.clone(),
             name: response.domain_name,
             provider: ProviderType::Aliyun,
             status: Self::convert_domain_status(response.domain_status.as_deref()),
@@ -166,11 +166,9 @@ impl DnsProvider for AliyunProvider {
             record_type: Option<String>,
         }
 
-        // 获取域名信息 (因为 API 需要域名名称而不是 ID)
-        let domain_info = self.get_domain(domain_id).await?;
-
+        // 阿里云的 domain_id 就是域名名称，可以直接使用
         let req = DescribeDomainRecordsRequest {
-            domain_name: domain_info.name,
+            domain_name: domain_id.to_string(),
             page_number: params.page,
             page_size: params.page_size.min(MAX_PAGE_SIZE),
             rr_keyword: params.keyword.clone().filter(|k| !k.is_empty()),
@@ -236,11 +234,9 @@ impl DnsProvider for AliyunProvider {
             priority: Option<u16>,
         }
 
-        // 获取域名信息
-        let domain_info = self.get_domain(&req.domain_id).await?;
-
+        // 阿里云的 domain_id 就是域名名称，可以直接使用
         let api_req = AddDomainRecordRequest {
-            domain_name: domain_info.name,
+            domain_name: req.domain_id.clone(),
             rr: req.name.clone(),
             record_type: record_type_to_string(&req.record_type).to_string(),
             value: req.value.clone(),
