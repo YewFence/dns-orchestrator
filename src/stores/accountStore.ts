@@ -7,7 +7,12 @@ import { logger } from "@/lib/logger"
 import { removeRecentDomainsByAccount } from "@/lib/recent-domains"
 import { accountService } from "@/services"
 import { transport } from "@/services/transport"
-import type { Account, CreateAccountRequest, CredentialValidationDetails } from "@/types"
+import type {
+  Account,
+  BatchDeleteResult,
+  CreateAccountRequest,
+  CredentialValidationDetails,
+} from "@/types"
 import type { ProviderInfo } from "@/types/provider"
 import { useDomainStore } from "./domainStore"
 
@@ -24,6 +29,10 @@ interface AccountState {
   isExportDialogOpen: boolean
   isImportDialogOpen: boolean
 
+  // 批量选择状态
+  selectedAccountIds: Set<string>
+  isBatchDeleting: boolean
+
   fetchAccounts: () => Promise<void>
   fetchProviders: () => Promise<void>
   createAccount: (request: CreateAccountRequest) => Promise<Account | null>
@@ -36,6 +45,12 @@ interface AccountState {
   openImportDialog: () => void
   closeImportDialog: () => void
   checkRestoreStatus: () => Promise<void>
+
+  // 批量选择方法
+  toggleAccountSelection: (id: string) => void
+  selectAllAccounts: () => void
+  clearSelection: () => void
+  batchDeleteAccounts: () => Promise<BatchDeleteResult | null>
 }
 
 export const useAccountStore = create<AccountState>((set, get) => ({
@@ -50,6 +65,10 @@ export const useAccountStore = create<AccountState>((set, get) => ({
   fieldErrors: {},
   isExportDialogOpen: false,
   isImportDialogOpen: false,
+
+  // 批量选择状态
+  selectedAccountIds: new Set<string>(),
+  isBatchDeleting: false,
 
   fetchAccounts: async () => {
     set({ isLoading: true, error: null })
@@ -181,5 +200,79 @@ export const useAccountStore = create<AccountState>((set, get) => ({
         set({ isRestoring: false })
       }
     }, 500)
+  },
+
+  // 批量选择方法
+  toggleAccountSelection: (id) => {
+    set((state) => {
+      const newSet = new Set(state.selectedAccountIds)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return { selectedAccountIds: newSet }
+    })
+  },
+
+  selectAllAccounts: () => {
+    set((state) => ({
+      selectedAccountIds: new Set(state.accounts.map((a) => a.id)),
+    }))
+  },
+
+  clearSelection: () => {
+    set({ selectedAccountIds: new Set() })
+  },
+
+  batchDeleteAccounts: async () => {
+    const { selectedAccountIds } = get()
+    if (selectedAccountIds.size === 0) return null
+
+    set({ isBatchDeleting: true })
+    try {
+      const accountIds = Array.from(selectedAccountIds)
+      const response = await accountService.batchDeleteAccounts(accountIds)
+
+      if (response.success && response.data) {
+        const result = response.data
+        // 从列表中移除已删除的账户
+        const deletedIds = new Set(
+          accountIds.filter((id) => !result.failures.some((f) => f.recordId === id))
+        )
+        set((state) => ({
+          accounts: state.accounts.filter((a) => !deletedIds.has(a.id)),
+          selectedAccountIds: new Set(),
+        }))
+
+        // 清理域名缓存和最近域名
+        for (const id of deletedIds) {
+          useDomainStore.getState().clearAccountCache(id)
+          removeRecentDomainsByAccount(id)
+        }
+
+        // 显示结果
+        if (result.failedCount === 0) {
+          toast.success(i18n.t("account.batchDeleteSuccess", { count: result.successCount }))
+        } else {
+          toast.warning(
+            i18n.t("account.batchDeletePartial", {
+              success: result.successCount,
+              failed: result.failedCount,
+            })
+          )
+        }
+
+        return result
+      }
+
+      toast.error(i18n.t("account.batchDeleteFailed"))
+      return null
+    } catch (err) {
+      toast.error(extractErrorMessage(err))
+      return null
+    } finally {
+      set({ isBatchDeleting: false })
+    }
   },
 }))

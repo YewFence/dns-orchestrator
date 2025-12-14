@@ -47,6 +47,15 @@ export default {
     createFailed: "Failed to create account",
     deleteSuccess: "Account deleted",
     deleteFailed: "Failed to delete account",
+    // 批量操作
+    selectedCount: "{{count}} selected",
+    batchDelete: "Delete Selected",
+    batchDeleteConfirm: "Confirm Batch Delete",
+    batchDeleteConfirmDesc:
+      "Are you sure you want to delete {{count}} selected account(s)? This action cannot be undone.",
+    batchDeleteSuccess: "Successfully deleted {{count}} accounts",
+    batchDeletePartial: "Deleted {{success}} accounts, {{failed}} failed",
+    batchDeleteFailed: "Batch delete failed",
   },
   accounts: {
     title: "Account Management",

@@ -6,7 +6,10 @@ use dns_orchestrator_provider::{create_provider, get_all_provider_metadata, Prov
 
 use crate::error::{CoreError, CoreResult};
 use crate::services::ServiceContext;
-use crate::types::{Account, AccountStatus, CreateAccountRequest, ProviderMetadata};
+use crate::types::{
+    Account, AccountStatus, BatchDeleteFailure, BatchDeleteResult, CreateAccountRequest,
+    ProviderMetadata,
+};
 
 /// 账户管理服务
 pub struct AccountService {
@@ -112,6 +115,33 @@ impl AccountService {
         self.ctx.account_repository.delete(account_id).await?;
 
         Ok(())
+    }
+
+    /// 批量删除账户
+    pub async fn batch_delete_accounts(
+        &self,
+        account_ids: Vec<String>,
+    ) -> CoreResult<BatchDeleteResult> {
+        let mut success_count = 0;
+        let mut failures = Vec::new();
+
+        for account_id in account_ids {
+            match self.delete_account(&account_id).await {
+                Ok(()) => success_count += 1,
+                Err(e) => {
+                    failures.push(BatchDeleteFailure {
+                        record_id: account_id,
+                        reason: e.to_string(),
+                    });
+                }
+            }
+        }
+
+        Ok(BatchDeleteResult {
+            success_count,
+            failed_count: failures.len(),
+            failures,
+        })
     }
 
     /// 获取所有支持的提供商列表

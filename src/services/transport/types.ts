@@ -43,6 +43,10 @@ export interface CommandMap {
     args: { accountId: string }
     result: ApiResponse<void>
   }
+  batch_delete_accounts: {
+    args: { accountIds: string[] }
+    result: ApiResponse<BatchDeleteResult>
+  }
   list_providers: {
     args: Record<string, never>
     result: ApiResponse<ProviderInfo[]>

@@ -5,6 +5,7 @@
 import type {
   Account,
   ApiResponse,
+  BatchDeleteResult,
   CreateAccountRequest,
   ExportAccountsRequest,
   ExportAccountsResponse,
@@ -26,6 +27,10 @@ class AccountService {
 
   deleteAccount(accountId: string): Promise<ApiResponse<void>> {
     return transport.invoke("delete_account", { accountId })
+  }
+
+  batchDeleteAccounts(accountIds: string[]): Promise<ApiResponse<BatchDeleteResult>> {
+    return transport.invoke("batch_delete_accounts", { accountIds })
   }
 
   listProviders(): Promise<ApiResponse<ProviderInfo[]>> {

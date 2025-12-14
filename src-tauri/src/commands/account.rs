@@ -2,8 +2,8 @@ use tauri::State;
 
 use crate::error::DnsError;
 use crate::types::{
-    Account, ApiResponse, CreateAccountRequest, ExportAccountsRequest, ExportAccountsResponse,
-    ImportAccountsRequest, ImportPreview, ImportResult, ProviderMetadata,
+    Account, ApiResponse, BatchDeleteResult, CreateAccountRequest, ExportAccountsRequest,
+    ExportAccountsResponse, ImportAccountsRequest, ImportPreview, ImportResult, ProviderMetadata,
 };
 use crate::AppState;
 
@@ -104,6 +104,36 @@ pub async fn delete_account(
 ) -> Result<ApiResponse<()>, DnsError> {
     state.account_service.delete_account(&account_id).await?;
     Ok(ApiResponse::success(()))
+}
+
+fn convert_batch_delete_result(
+    result: dns_orchestrator_core::types::BatchDeleteResult,
+) -> BatchDeleteResult {
+    BatchDeleteResult {
+        success_count: result.success_count,
+        failed_count: result.failed_count,
+        failures: result
+            .failures
+            .into_iter()
+            .map(|f| crate::types::BatchDeleteFailure {
+                record_id: f.record_id,
+                reason: f.reason,
+            })
+            .collect(),
+    }
+}
+
+/// 批量删除账号
+#[tauri::command]
+pub async fn batch_delete_accounts(
+    state: State<'_, AppState>,
+    account_ids: Vec<String>,
+) -> Result<ApiResponse<BatchDeleteResult>, DnsError> {
+    let result = state
+        .account_service
+        .batch_delete_accounts(account_ids)
+        .await?;
+    Ok(ApiResponse::success(convert_batch_delete_result(result)))
 }
 
 /// 获取所有支持的提供商列表

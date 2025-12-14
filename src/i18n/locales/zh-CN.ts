@@ -46,6 +46,14 @@ export default {
     createFailed: "创建账号失败",
     deleteSuccess: "账号已删除",
     deleteFailed: "删除账号失败",
+    // 批量操作
+    selectedCount: "已选择 {{count}} 个账户",
+    batchDelete: "批量删除",
+    batchDeleteConfirm: "确认批量删除",
+    batchDeleteConfirmDesc: "确定要删除选中的 {{count}} 个账户吗？此操作无法撤销。",
+    batchDeleteSuccess: "成功删除 {{count}} 个账户",
+    batchDeletePartial: "删除完成：{{success}} 成功，{{failed}} 失败",
+    batchDeleteFailed: "批量删除失败",
   },
   accounts: {
     title: "账户管理",

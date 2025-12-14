@@ -16,6 +16,7 @@ import { AccountForm } from "@/components/account/AccountForm"
 import { ExportDialog } from "@/components/account/ExportDialog"
 import { ImportDialog } from "@/components/account/ImportDialog"
 import { getProviderName, ProviderIcon } from "@/components/account/ProviderIcon"
+import { AccountBatchActionBar } from "@/components/accounts/AccountBatchActionBar"
 import { MobileMenuTrigger } from "@/components/layout/MobileMenuTrigger"
 import {
   AlertDialog,
@@ -37,6 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
 import { useAccountStore } from "@/stores"
 import type { Account } from "@/types"
 
@@ -44,16 +46,23 @@ export function AccountsPage() {
   const { t } = useTranslation()
 
   // 使用 useShallow 优化 store 订阅粒度
-  const { accounts, isLoading, isDeleting, isExportDialogOpen, isImportDialogOpen } =
-    useAccountStore(
-      useShallow((state) => ({
-        accounts: state.accounts,
-        isLoading: state.isLoading,
-        isDeleting: state.isDeleting,
-        isExportDialogOpen: state.isExportDialogOpen,
-        isImportDialogOpen: state.isImportDialogOpen,
-      }))
-    )
+  const {
+    accounts,
+    isLoading,
+    isDeleting,
+    isExportDialogOpen,
+    isImportDialogOpen,
+    selectedAccountIds,
+  } = useAccountStore(
+    useShallow((state) => ({
+      accounts: state.accounts,
+      isLoading: state.isLoading,
+      isDeleting: state.isDeleting,
+      isExportDialogOpen: state.isExportDialogOpen,
+      isImportDialogOpen: state.isImportDialogOpen,
+      selectedAccountIds: state.selectedAccountIds,
+    }))
+  )
 
   // actions 单独获取
   const fetchAccounts = useAccountStore((state) => state.fetchAccounts)
@@ -62,6 +71,9 @@ export function AccountsPage() {
   const closeExportDialog = useAccountStore((state) => state.closeExportDialog)
   const openImportDialog = useAccountStore((state) => state.openImportDialog)
   const closeImportDialog = useAccountStore((state) => state.closeImportDialog)
+  const toggleAccountSelection = useAccountStore((state) => state.toggleAccountSelection)
+
+  const isSelectMode = selectedAccountIds.size > 0
 
   const [showAccountForm, setShowAccountForm] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null)
@@ -167,10 +179,16 @@ export function AccountsPage() {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {accounts.map((account) => {
                 const hasError = account.status === "error"
+                const isSelected = selectedAccountIds.has(account.id)
                 return (
                   <Card
                     key={account.id}
-                    className={hasError ? "border-destructive/50 bg-destructive/5" : ""}
+                    onClick={() => toggleAccountSelection(account.id)}
+                    className={cn(
+                      "cursor-pointer transition-all",
+                      hasError && "border-destructive/50 bg-destructive/5",
+                      isSelected && "ring-2 ring-primary bg-primary/5"
+                    )}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start gap-3">
@@ -193,22 +211,27 @@ export function AccountsPage() {
                             </p>
                           )}
                         </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => setDeleteTarget(account)}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              {t("account.deleteAccount")}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        {!isSelectMode && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setDeleteTarget(account)
+                                }}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                {t("account.deleteAccount")}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -254,6 +277,9 @@ export function AccountsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 批量操作栏 */}
+      <AccountBatchActionBar />
     </div>
   )
 }
