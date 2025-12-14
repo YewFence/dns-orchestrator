@@ -48,3 +48,14 @@ pub struct CreateAccountRequest {
     /// 凭证键值对
     pub credentials: HashMap<String, String>,
 }
+
+/// 更新账户请求
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateAccountRequest {
+    /// 账户 ID
+    pub id: String,
+    /// 新的账户名称（可选）
+    pub name: Option<String>,
+    /// 新的凭证（可选，提供时会覆盖原有凭证）
+    pub credentials: Option<HashMap<String, String>>,
+}

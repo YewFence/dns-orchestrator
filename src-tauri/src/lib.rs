@@ -138,6 +138,7 @@ pub fn run() {
         // Account commands
         account::list_accounts,
         account::create_account,
+        account::update_account,
         account::delete_account,
         account::batch_delete_accounts,
         account::list_providers,
@@ -166,6 +167,7 @@ pub fn run() {
         // Account commands
         account::list_accounts,
         account::create_account,
+        account::update_account,
         account::delete_account,
         account::batch_delete_accounts,
         account::list_providers,

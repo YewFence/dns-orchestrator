@@ -3,6 +3,7 @@ import {
   Globe,
   Loader2,
   MoreHorizontal,
+  Pencil,
   Plus,
   Trash2,
   TriangleAlert,
@@ -76,6 +77,7 @@ export function AccountsPage() {
   const isSelectMode = selectedAccountIds.size > 0
 
   const [showAccountForm, setShowAccountForm] = useState(false)
+  const [editTarget, setEditTarget] = useState<Account | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null)
 
   const handleDelete = async () => {
@@ -222,6 +224,15 @@ export function AccountsPage() {
                               <DropdownMenuItem
                                 onClick={(e) => {
                                   e.stopPropagation()
+                                  setEditTarget(account)
+                                }}
+                              >
+                                <Pencil className="mr-2 h-4 w-4" />
+                                {t("account.editAccount")}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation()
                                   setDeleteTarget(account)
                                 }}
                                 className="text-destructive focus:text-destructive"
@@ -243,7 +254,16 @@ export function AccountsPage() {
       </ScrollArea>
 
       {/* Dialogs */}
-      <AccountForm open={showAccountForm} onOpenChange={setShowAccountForm} />
+      <AccountForm
+        open={showAccountForm || !!editTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowAccountForm(false)
+            setEditTarget(null)
+          }
+        }}
+        account={editTarget ?? undefined}
+      />
       <ExportDialog
         open={isExportDialogOpen}
         onOpenChange={closeExportDialog}

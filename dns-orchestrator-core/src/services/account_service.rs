@@ -8,7 +8,7 @@ use crate::error::{CoreError, CoreResult};
 use crate::services::ServiceContext;
 use crate::types::{
     Account, AccountStatus, BatchDeleteFailure, BatchDeleteResult, CreateAccountRequest,
-    ProviderMetadata,
+    ProviderMetadata, UpdateAccountRequest,
 };
 
 /// 账户管理服务
@@ -115,6 +115,69 @@ impl AccountService {
         self.ctx.account_repository.delete(account_id).await?;
 
         Ok(())
+    }
+
+    /// 更新账户
+    ///
+    /// 支持更新账户名称和/或凭证
+    /// 如果更新凭证，会重新验证并重新注册 Provider
+    pub async fn update_account(&self, request: UpdateAccountRequest) -> CoreResult<Account> {
+        // 1. 获取现有账户
+        let mut account = self
+            .ctx
+            .account_repository
+            .find_by_id(&request.id)
+            .await?
+            .ok_or_else(|| CoreError::AccountNotFound(request.id.clone()))?;
+
+        // 2. 如果提供了新凭证，验证并更新
+        if let Some(ref new_credentials) = request.credentials {
+            // 2.1 转换凭证并创建新的 provider 实例
+            let credentials = ProviderCredentials::from_map(&account.provider, new_credentials)
+                .map_err(CoreError::CredentialValidation)?;
+            let new_provider = create_provider(credentials)?;
+
+            // 2.2 验证新凭证
+            let is_valid = new_provider.validate_credentials().await?;
+            if !is_valid {
+                return Err(CoreError::InvalidCredentials(account.provider.to_string()));
+            }
+
+            // 2.3 更新凭证存储
+            log::info!("Updating credentials for account: {}", request.id);
+            self.ctx
+                .credential_store
+                .save(&request.id, new_credentials)
+                .await
+                .map_err(|e| {
+                    log::error!("Failed to save credentials: {e}");
+                    CoreError::CredentialError(e.to_string())
+                })?;
+
+            // 2.4 重新注册 provider
+            self.ctx.provider_registry.unregister(&request.id).await;
+            self.ctx
+                .provider_registry
+                .register(request.id.clone(), new_provider)
+                .await;
+
+            // 2.5 更新状态为 Active（凭证验证成功）
+            account.status = Some(AccountStatus::Active);
+            account.error = None;
+        }
+
+        // 3. 更新名称（如果提供）
+        if let Some(new_name) = request.name {
+            account.name = new_name;
+        }
+
+        // 4. 更新时间戳
+        account.updated_at = chrono::Utc::now().to_rfc3339();
+
+        // 5. 保存更新后的账户
+        self.ctx.account_repository.save(&account).await?;
+
+        Ok(account)
     }
 
     /// 批量删除账户

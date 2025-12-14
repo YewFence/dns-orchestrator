@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -19,17 +20,29 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAccountStore } from "@/stores"
+import type { Account } from "@/types"
 import { ProviderIcon } from "./ProviderIcon"
 
 interface AccountFormProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  account?: Account // 编辑模式时传入
 }
 
-export function AccountForm({ open, onOpenChange }: AccountFormProps) {
+export function AccountForm({ open, onOpenChange, account }: AccountFormProps) {
   const { t } = useTranslation()
-  const { createAccount, isLoading, providers, fetchProviders, fieldErrors, clearFieldErrors } =
-    useAccountStore()
+  const {
+    createAccount,
+    updateAccount,
+    isLoading,
+    isUpdating,
+    providers,
+    fetchProviders,
+    fieldErrors,
+    clearFieldErrors,
+  } = useAccountStore()
+
+  const isEditing = !!account
 
   const [provider, setProvider] = useState<string>("")
   const [name, setName] = useState("")
@@ -40,10 +53,28 @@ export function AccountForm({ open, onOpenChange }: AccountFormProps) {
   useEffect(() => {
     if (providers.length === 0) {
       fetchProviders()
-    } else if (!provider) {
+    } else if (!provider && !isEditing) {
       setProvider(providers[0].id)
     }
-  }, [providers, provider, fetchProviders])
+  }, [providers, provider, fetchProviders, isEditing])
+
+  // 编辑模式：预填充表单
+  useEffect(() => {
+    if (open && account) {
+      setProvider(account.provider)
+      setName(account.name)
+      setCredentials({}) // 凭证不回显
+      setShowPasswords({})
+    } else if (open && !account) {
+      // 创建模式：重置表单
+      setName("")
+      setCredentials({})
+      setShowPasswords({})
+      if (providers.length > 0) {
+        setProvider(providers[0].id)
+      }
+    }
+  }, [open, account, providers])
 
   const providerInfo = providers.find((p) => p.id === provider)
 
@@ -70,23 +101,41 @@ export function AccountForm({ open, onOpenChange }: AccountFormProps) {
 
     if (!providerInfo) return
 
-    const result = await createAccount({
-      name: name || `${providerInfo.name} 账号`,
-      provider,
-      credentials,
-    })
+    if (isEditing) {
+      // 编辑模式
+      const hasCredentials = Object.values(credentials).some((v) => v.trim())
+      const result = await updateAccount({
+        id: account.id,
+        name: name || undefined,
+        credentials: hasCredentials ? credentials : undefined,
+      })
 
-    if (result) {
-      // 重置表单
-      setName("")
-      setCredentials({})
-      setShowPasswords({})
-      onOpenChange(false)
+      if (result) {
+        onOpenChange(false)
+      }
+    } else {
+      // 创建模式
+      const result = await createAccount({
+        name: name || `${providerInfo.name} 账号`,
+        provider,
+        credentials,
+      })
+
+      if (result) {
+        setName("")
+        setCredentials({})
+        setShowPasswords({})
+        onOpenChange(false)
+      }
     }
   }
 
-  const isValid =
+  // 创建模式：所有必填字段都要填写
+  // 编辑模式：至少修改了名称或凭证中的任意一个
+  const isValidForCreate =
     providerInfo?.requiredFields.every((field) => credentials[field.key]?.trim()) ?? false
+  const isValidForEdit = name !== account?.name || Object.values(credentials).some((v) => v.trim())
+  const isValid = isEditing ? isValidForEdit : isValidForCreate
 
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
@@ -95,18 +144,25 @@ export function AccountForm({ open, onOpenChange }: AccountFormProps) {
     onOpenChange(isOpen)
   }
 
+  const isSubmitting = isLoading || isUpdating
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t("account.addAccount")}</DialogTitle>
+          <DialogTitle>
+            {isEditing ? t("account.editAccount") : t("account.addAccount")}
+          </DialogTitle>
+          {isEditing && (
+            <DialogDescription>{t("account.editAccountDesc")}</DialogDescription>
+          )}
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* 提供商选择 */}
           <div className="space-y-2">
             <Label>{t("account.provider")}</Label>
-            <Select value={provider} onValueChange={handleProviderChange}>
+            <Select value={provider} onValueChange={handleProviderChange} disabled={isEditing}>
               <SelectTrigger>
                 <SelectValue
                   placeholder={
@@ -133,7 +189,9 @@ export function AccountForm({ open, onOpenChange }: AccountFormProps) {
           {/* 账号名称 */}
           {providerInfo && (
             <div className="space-y-2">
-              <Label htmlFor="name">{t("account.accountNameOptional")}</Label>
+              <Label htmlFor="name">
+                {isEditing ? t("account.accountName") : t("account.accountNameOptional")}
+              </Label>
               <Input
                 id="name"
                 value={name}
@@ -146,7 +204,14 @@ export function AccountForm({ open, onOpenChange }: AccountFormProps) {
           {/* 凭证字段 */}
           {providerInfo?.requiredFields.map((field) => (
             <div key={field.key} className="space-y-2">
-              <Label htmlFor={field.key}>{field.label}</Label>
+              <Label htmlFor={field.key}>
+                {field.label}
+                {isEditing && (
+                  <span className="text-muted-foreground ml-1 font-normal">
+                    ({t("account.leaveEmptyToKeep")})
+                  </span>
+                )}
+              </Label>
               <div className="relative">
                 <Input
                   id={field.key}
@@ -155,9 +220,9 @@ export function AccountForm({ open, onOpenChange }: AccountFormProps) {
                   }
                   value={credentials[field.key] || ""}
                   onChange={(e) => handleCredentialChange(field.key, e.target.value)}
-                  placeholder={field.placeholder}
+                  placeholder={isEditing ? t("account.enterNewValue") : field.placeholder}
                   className={`pr-10 ${fieldErrors[field.key] ? "border-destructive" : ""}`}
-                  required
+                  required={!isEditing}
                 />
                 {field.type === "password" && (
                   <Button
@@ -188,9 +253,9 @@ export function AccountForm({ open, onOpenChange }: AccountFormProps) {
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               {t("common.cancel")}
             </Button>
-            <Button type="submit" disabled={isLoading || !isValid}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t("common.add")}
+            <Button type="submit" disabled={isSubmitting || !isValid}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isEditing ? t("common.save") : t("common.add")}
             </Button>
           </DialogFooter>
         </form>

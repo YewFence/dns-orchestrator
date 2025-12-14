@@ -13,6 +13,7 @@ import type {
   ImportPreview,
   ImportResult,
   ProviderInfo,
+  UpdateAccountRequest,
 } from "@/types"
 import { transport } from "./transport"
 
@@ -27,6 +28,10 @@ class AccountService {
 
   deleteAccount(accountId: string): Promise<ApiResponse<void>> {
     return transport.invoke("delete_account", { accountId })
+  }
+
+  updateAccount(request: UpdateAccountRequest): Promise<ApiResponse<Account>> {
+    return transport.invoke("update_account", { request })
   }
 
   batchDeleteAccounts(accountIds: string[]): Promise<ApiResponse<BatchDeleteResult>> {

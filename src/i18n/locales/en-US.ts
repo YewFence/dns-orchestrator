@@ -56,6 +56,12 @@ export default {
     batchDeleteSuccess: "Successfully deleted {{count}} accounts",
     batchDeletePartial: "Deleted {{success}} accounts, {{failed}} failed",
     batchDeleteFailed: "Batch delete failed",
+    // Edit account
+    editAccountDesc: "Modify account name or update credentials",
+    updateSuccess: 'Account "{{name}}" updated successfully',
+    updateFailed: "Failed to update account",
+    leaveEmptyToKeep: "leave empty to keep",
+    enterNewValue: "Enter new value",
   },
   accounts: {
     title: "Account Management",

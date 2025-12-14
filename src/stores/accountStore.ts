@@ -12,6 +12,7 @@ import type {
   BatchDeleteResult,
   CreateAccountRequest,
   CredentialValidationDetails,
+  UpdateAccountRequest,
 } from "@/types"
 import type { ProviderInfo } from "@/types/provider"
 import { useDomainStore } from "./domainStore"
@@ -23,6 +24,7 @@ interface AccountState {
   expandedAccountId: string | null
   isLoading: boolean
   isDeleting: boolean
+  isUpdating: boolean
   isRestoring: boolean
   error: string | null
   fieldErrors: Record<string, string> // 字段级错误
@@ -36,6 +38,7 @@ interface AccountState {
   fetchAccounts: () => Promise<void>
   fetchProviders: () => Promise<void>
   createAccount: (request: CreateAccountRequest) => Promise<Account | null>
+  updateAccount: (request: UpdateAccountRequest) => Promise<Account | null>
   deleteAccount: (id: string) => Promise<boolean>
   selectAccount: (id: string | null) => void
   setExpandedAccountId: (id: string | null) => void
@@ -60,6 +63,7 @@ export const useAccountStore = create<AccountState>((set, get) => ({
   expandedAccountId: null,
   isLoading: false,
   isDeleting: false,
+  isUpdating: false,
   isRestoring: false,
   error: null,
   fieldErrors: {},
@@ -164,6 +168,40 @@ export const useAccountStore = create<AccountState>((set, get) => ({
       return false
     } finally {
       set({ isDeleting: false })
+    }
+  },
+
+  updateAccount: async (request) => {
+    set({ isUpdating: true, error: null, fieldErrors: {} })
+    try {
+      const response = await accountService.updateAccount(request)
+      if (response.success && response.data) {
+        // 更新本地账户列表
+        set((state) => ({
+          accounts: state.accounts.map((a) => (a.id === request.id ? response.data! : a)),
+        }))
+        toast.success(i18n.t("account.updateSuccess", { name: response.data.name }))
+        return response.data
+      }
+      // 处理凭证验证错误（字段级）
+      if (response.error?.code === "CredentialValidation" && response.error.details) {
+        const details = response.error.details as CredentialValidationDetails
+        const fieldError = getFieldErrorMessage(details)
+        set({ fieldErrors: { [details.field]: fieldError } })
+        return null
+      }
+      // 其他错误
+      const msg = getErrorMessage(response.error)
+      set({ error: msg })
+      toast.error(msg)
+      return null
+    } catch (err) {
+      const msg = extractErrorMessage(err)
+      set({ error: msg })
+      toast.error(msg)
+      return null
+    } finally {
+      set({ isUpdating: false })
     }
   },
 

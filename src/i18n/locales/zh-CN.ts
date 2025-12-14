@@ -54,6 +54,12 @@ export default {
     batchDeleteSuccess: "成功删除 {{count}} 个账户",
     batchDeletePartial: "删除完成：{{success}} 成功，{{failed}} 失败",
     batchDeleteFailed: "批量删除失败",
+    // 编辑账户
+    editAccountDesc: "修改账户名称或更新凭证",
+    updateSuccess: '账户 "{{name}}" 更新成功',
+    updateFailed: "更新账户失败",
+    leaveEmptyToKeep: "留空保持不变",
+    enterNewValue: "输入新值",
   },
   accounts: {
     title: "账户管理",

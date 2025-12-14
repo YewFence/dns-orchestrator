@@ -49,6 +49,15 @@ pub struct CreateAccountRequest {
     pub credentials: HashMap<String, String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateAccountRequest {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credentials: Option<HashMap<String, String>>,
+}
+
 // ============ 应用层 Domain（包含 account_id）============
 
 /// 应用层 Domain 类型（包含 `account_id`）

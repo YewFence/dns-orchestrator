@@ -6,7 +6,7 @@ mod export;
 mod response;
 mod toolbox;
 
-pub use account::{Account, AccountStatus, CreateAccountRequest};
+pub use account::{Account, AccountStatus, CreateAccountRequest, UpdateAccountRequest};
 pub use domain::AppDomain;
 pub use export::{
     ExportAccountsRequest, ExportAccountsResponse, ExportFile, ExportFileHeader, ExportedAccount,

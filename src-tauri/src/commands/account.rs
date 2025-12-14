@@ -4,6 +4,7 @@ use crate::error::DnsError;
 use crate::types::{
     Account, ApiResponse, BatchDeleteResult, CreateAccountRequest, ExportAccountsRequest,
     ExportAccountsResponse, ImportAccountsRequest, ImportPreview, ImportResult, ProviderMetadata,
+    UpdateAccountRequest,
 };
 use crate::AppState;
 
@@ -104,6 +105,23 @@ pub async fn delete_account(
 ) -> Result<ApiResponse<()>, DnsError> {
     state.account_service.delete_account(&account_id).await?;
     Ok(ApiResponse::success(()))
+}
+
+/// 更新账号
+#[tauri::command]
+pub async fn update_account(
+    state: State<'_, AppState>,
+    request: UpdateAccountRequest,
+) -> Result<ApiResponse<Account>, DnsError> {
+    // 转换请求类型
+    let core_request = dns_orchestrator_core::types::UpdateAccountRequest {
+        id: request.id,
+        name: request.name,
+        credentials: request.credentials,
+    };
+
+    let account = state.account_service.update_account(core_request).await?;
+    Ok(ApiResponse::success(convert_account(account)))
 }
 
 fn convert_batch_delete_result(
