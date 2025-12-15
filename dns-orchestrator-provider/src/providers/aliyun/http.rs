@@ -1,9 +1,10 @@
-//! 阿里云 HTTP 请求方法
+//! 阿里云 HTTP 请求方法（重构版：使用通用 HTTP 工具）
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Result;
+use crate::http_client::HttpUtils;
 use crate::traits::{ErrorContext, ProviderErrorMapper, RawApiError};
 
 use super::{
@@ -35,10 +36,8 @@ impl AliyunProvider {
             format!("https://{ALIYUN_DNS_HOST}/?{query_string}")
         };
 
-        log::debug!("POST {url} Action: {action}");
-
-        // 4. 发送请求 (body 为空)
-        let response = self
+        // 4. 发送请求 (body 为空，使用 HttpUtils)
+        let request = self
             .client
             .post(&url)
             .header("Host", ALIYUN_DNS_HOST)
@@ -47,34 +46,25 @@ impl AliyunProvider {
             .header("x-acs-date", &timestamp)
             .header("x-acs-signature-nonce", &nonce)
             .header("x-acs-content-sha256", EMPTY_BODY_SHA256)
-            .header("Authorization", authorization)
-            .send()
-            .await
-            .map_err(|e| self.network_error(e))?;
+            .header("Authorization", authorization);
 
-        let status = response.status();
-        log::debug!("Response Status: {status}");
+        let (_status, response_text) = HttpUtils::execute_request(
+            request,
+            self.provider_name(),
+            "POST",
+            &format!("{} (Action: {})", url, action),
+        )
+        .await?;
 
-        let response_text = response
-            .text()
-            .await
-            .map_err(|e| self.network_error(format!("读取响应失败: {e}")))?;
-
-        log::debug!("Response Body: {response_text}");
-
-        // 先检查是否有错误响应
-        if let Ok(error_response) = serde_json::from_str::<AliyunResponse<()>>(&response_text)
-            && let (Some(code), Some(message)) = (error_response.code, error_response.message)
-        {
-            log::error!("API 错误: {code} - {message}");
-            return Err(self.map_error(RawApiError::with_code(&code, &message), ctx));
+        // 5. 先检查是否有错误响应
+        if let Ok(error_response) = serde_json::from_str::<AliyunResponse<()>>(&response_text) {
+            if let (Some(code), Some(message)) = (error_response.code, error_response.message) {
+                log::error!("API 错误: {code} - {message}");
+                return Err(self.map_error(RawApiError::with_code(&code, &message), ctx));
+            }
         }
 
-        // 解析成功响应
-        serde_json::from_str(&response_text).map_err(|e| {
-            log::error!("JSON 解析失败: {e}");
-            log::error!("原始响应: {response_text}");
-            self.parse_error(e)
-        })
+        // 6. 解析成功响应
+        HttpUtils::parse_json(&response_text, self.provider_name())
     }
 }

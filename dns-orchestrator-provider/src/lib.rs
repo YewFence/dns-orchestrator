@@ -37,6 +37,7 @@
 
 mod error;
 mod factory;
+mod http_client;
 mod providers;
 mod traits;
 mod types;

@@ -1,9 +1,10 @@
-//! DNSPod HTTP 请求方法
+//! DNSPod HTTP 请求方法（重构版：使用通用 HTTP 工具）
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{ProviderError, Result};
+use crate::http_client::HttpUtils;
 use crate::traits::{ErrorContext, ProviderErrorMapper, RawApiError};
 
 use super::{DNSPOD_API_HOST, DNSPOD_VERSION, DnspodProvider, TencentResponse};
@@ -16,20 +17,22 @@ impl DnspodProvider {
         body: &B,
         ctx: ErrorContext,
     ) -> Result<T> {
+        // 1. 序列化请求体
         let payload =
             serde_json::to_string(body).map_err(|e| ProviderError::SerializationError {
                 provider: self.provider_name().to_string(),
                 detail: e.to_string(),
             })?;
 
+        log::debug!("Request Body: {payload}");
+
+        // 2. 生成签名
         let timestamp = Utc::now().timestamp();
         let authorization = self.sign(action, &payload, timestamp);
 
+        // 3. 发送请求（使用 HttpUtils）
         let url = format!("https://{DNSPOD_API_HOST}");
-        log::debug!("POST {url} Action: {action}");
-        log::debug!("Request Body: {payload}");
-
-        let response = self
+        let request = self
             .client
             .post(&url)
             .header("Content-Type", "application/json; charset=utf-8")
@@ -38,33 +41,27 @@ impl DnspodProvider {
             .header("X-TC-Version", DNSPOD_VERSION)
             .header("X-TC-Timestamp", timestamp.to_string())
             .header("Authorization", authorization)
-            .body(payload)
-            .send()
-            .await
-            .map_err(|e| self.network_error(e))?;
+            .body(payload);
 
-        let status = response.status();
-        log::debug!("Response Status: {status}");
+        let (_status, response_text) = HttpUtils::execute_request(
+            request,
+            self.provider_name(),
+            "POST",
+            &format!("Action: {}", action),
+        )
+        .await?;
 
-        let response_text = response
-            .text()
-            .await
-            .map_err(|e| self.network_error(format!("读取响应失败: {e}")))?;
-
-        log::debug!("Response Body: {response_text}");
-
+        // 4. 解析响应
         let tc_response: TencentResponse<T> =
-            serde_json::from_str(&response_text).map_err(|e| {
-                log::error!("JSON 解析失败: {e}");
-                log::error!("原始响应: {response_text}");
-                self.parse_error(e)
-            })?;
+            HttpUtils::parse_json(&response_text, self.provider_name())?;
 
+        // 5. 处理错误
         if let Some(error) = tc_response.response.error {
             log::error!("API 错误: {} - {}", error.code, error.message);
             return Err(self.map_error(RawApiError::with_code(&error.code, &error.message), ctx));
         }
 
+        // 6. 提取数据
         tc_response
             .response
             .data

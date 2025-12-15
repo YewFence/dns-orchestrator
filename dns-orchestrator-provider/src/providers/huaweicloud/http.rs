@@ -1,9 +1,10 @@
-//! 华为云 HTTP 请求方法
+//! 华为云 HTTP 请求方法（重构版：使用通用 HTTP 工具）
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{ProviderError, Result};
+use crate::http_client::HttpUtils;
 use crate::traits::{ErrorContext, ProviderErrorMapper, RawApiError};
 
 use super::types::ErrorResponse;
@@ -33,45 +34,22 @@ impl HuaweicloudProvider {
             format!("https://{HUAWEICLOUD_DNS_HOST}{path}?{query}")
         };
 
-        log::debug!("GET {url}");
-
-        let response = self
+        // 使用 HttpUtils 发送请求
+        let request = self
             .client
             .get(&url)
             .header("Host", HUAWEICLOUD_DNS_HOST)
             .header("X-Sdk-Date", &timestamp)
-            .header("Authorization", authorization)
-            .send()
-            .await
-            .map_err(|e| self.network_error(e))?;
+            .header("Authorization", authorization);
 
-        let status = response.status();
-        let response_text = response
-            .text()
-            .await
-            .map_err(|e| self.network_error(format!("读取响应失败: {e}")))?;
+        let (status, response_text) =
+            HttpUtils::execute_request(request, self.provider_name(), "GET", &url).await?;
 
-        log::debug!("Response Status: {status}, Body: {response_text}");
+        // 处理错误响应
+        self.handle_response_error(status, &response_text, ctx)?;
 
-        if !status.is_success() {
-            if let Ok(error) = serde_json::from_str::<ErrorResponse>(&response_text) {
-                return Err(self.map_error(
-                    RawApiError::with_code(
-                        error.error_code.unwrap_or_default(),
-                        error.error_msg.unwrap_or_default(),
-                    ),
-                    ctx,
-                ));
-            }
-            return Err(
-                self.unknown_error(RawApiError::new(format!("HTTP {status}: {response_text}")))
-            );
-        }
-
-        serde_json::from_str(&response_text).map_err(|e| {
-            log::error!("JSON 解析失败: {e}");
-            self.parse_error(e)
-        })
+        // 解析成功响应
+        HttpUtils::parse_json(&response_text, self.provider_name())
     }
 
     /// 执行 POST 请求
@@ -87,6 +65,8 @@ impl HuaweicloudProvider {
                 detail: e.to_string(),
             })?;
 
+        log::debug!("Request Body: {payload}");
+
         let now = Utc::now();
         let timestamp = now.format("%Y%m%dT%H%M%SZ").to_string();
 
@@ -99,47 +79,25 @@ impl HuaweicloudProvider {
         let authorization = self.sign("POST", path, "", &headers, &payload, &timestamp);
 
         let url = format!("https://{HUAWEICLOUD_DNS_HOST}{path}");
-        log::debug!("POST {url} Body: {payload}");
 
-        let response = self
+        // 使用 HttpUtils 发送请求
+        let request = self
             .client
             .post(&url)
             .header("Host", HUAWEICLOUD_DNS_HOST)
             .header("X-Sdk-Date", &timestamp)
             .header("Content-Type", "application/json")
             .header("Authorization", authorization)
-            .body(payload)
-            .send()
-            .await
-            .map_err(|e| self.network_error(e))?;
+            .body(payload);
 
-        let status = response.status();
-        let response_text = response
-            .text()
-            .await
-            .map_err(|e| self.network_error(format!("读取响应失败: {e}")))?;
+        let (status, response_text) =
+            HttpUtils::execute_request(request, self.provider_name(), "POST", &url).await?;
 
-        log::debug!("Response Status: {status}, Body: {response_text}");
+        // 处理错误响应
+        self.handle_response_error(status, &response_text, ctx)?;
 
-        if !status.is_success() {
-            if let Ok(error) = serde_json::from_str::<ErrorResponse>(&response_text) {
-                return Err(self.map_error(
-                    RawApiError::with_code(
-                        error.error_code.unwrap_or_default(),
-                        error.error_msg.unwrap_or_default(),
-                    ),
-                    ctx,
-                ));
-            }
-            return Err(
-                self.unknown_error(RawApiError::new(format!("HTTP {status}: {response_text}")))
-            );
-        }
-
-        serde_json::from_str(&response_text).map_err(|e| {
-            log::error!("JSON 解析失败: {e}");
-            self.parse_error(e)
-        })
+        // 解析成功响应
+        HttpUtils::parse_json(&response_text, self.provider_name())
     }
 
     /// 执行 PUT 请求
@@ -155,6 +113,8 @@ impl HuaweicloudProvider {
                 detail: e.to_string(),
             })?;
 
+        log::debug!("Request Body: {payload}");
+
         let now = Utc::now();
         let timestamp = now.format("%Y%m%dT%H%M%SZ").to_string();
 
@@ -167,47 +127,25 @@ impl HuaweicloudProvider {
         let authorization = self.sign("PUT", path, "", &headers, &payload, &timestamp);
 
         let url = format!("https://{HUAWEICLOUD_DNS_HOST}{path}");
-        log::debug!("PUT {url} Body: {payload}");
 
-        let response = self
+        // 使用 HttpUtils 发送请求
+        let request = self
             .client
             .put(&url)
             .header("Host", HUAWEICLOUD_DNS_HOST)
             .header("X-Sdk-Date", &timestamp)
             .header("Content-Type", "application/json")
             .header("Authorization", authorization)
-            .body(payload)
-            .send()
-            .await
-            .map_err(|e| self.network_error(e))?;
+            .body(payload);
 
-        let status = response.status();
-        let response_text = response
-            .text()
-            .await
-            .map_err(|e| self.network_error(format!("读取响应失败: {e}")))?;
+        let (status, response_text) =
+            HttpUtils::execute_request(request, self.provider_name(), "PUT", &url).await?;
 
-        log::debug!("Response Status: {status}, Body: {response_text}");
+        // 处理错误响应
+        self.handle_response_error(status, &response_text, ctx)?;
 
-        if !status.is_success() {
-            if let Ok(error) = serde_json::from_str::<ErrorResponse>(&response_text) {
-                return Err(self.map_error(
-                    RawApiError::with_code(
-                        error.error_code.unwrap_or_default(),
-                        error.error_msg.unwrap_or_default(),
-                    ),
-                    ctx,
-                ));
-            }
-            return Err(
-                self.unknown_error(RawApiError::new(format!("HTTP {status}: {response_text}")))
-            );
-        }
-
-        serde_json::from_str(&response_text).map_err(|e| {
-            log::error!("JSON 解析失败: {e}");
-            self.parse_error(e)
-        })
+        // 解析成功响应
+        HttpUtils::parse_json(&response_text, self.provider_name())
     }
 
     /// 执行 DELETE 请求
@@ -223,40 +161,47 @@ impl HuaweicloudProvider {
         let authorization = self.sign("DELETE", path, "", &headers, "", &timestamp);
 
         let url = format!("https://{HUAWEICLOUD_DNS_HOST}{path}");
-        log::debug!("DELETE {url}");
 
-        let response = self
+        // 使用 HttpUtils 发送请求
+        let request = self
             .client
             .delete(&url)
             .header("Host", HUAWEICLOUD_DNS_HOST)
             .header("X-Sdk-Date", &timestamp)
-            .header("Authorization", authorization)
-            .send()
-            .await
-            .map_err(|e| self.network_error(e))?;
+            .header("Authorization", authorization);
 
-        let status = response.status();
+        let (status, response_text) =
+            HttpUtils::execute_request(request, self.provider_name(), "DELETE", &url).await?;
 
-        if !status.is_success() {
-            let response_text = response
-                .text()
-                .await
-                .map_err(|e| self.network_error(format!("读取响应失败: {e}")))?;
-
-            if let Ok(error) = serde_json::from_str::<ErrorResponse>(&response_text) {
-                return Err(self.map_error(
-                    RawApiError::with_code(
-                        error.error_code.unwrap_or_default(),
-                        error.error_msg.unwrap_or_default(),
-                    ),
-                    ctx,
-                ));
-            }
-            return Err(
-                self.unknown_error(RawApiError::new(format!("HTTP {status}: {response_text}")))
-            );
-        }
+        // 处理错误响应
+        self.handle_response_error(status, &response_text, ctx)?;
 
         Ok(())
+    }
+
+    /// 统一处理华为云响应错误
+    fn handle_response_error(
+        &self,
+        status: u16,
+        response_text: &str,
+        ctx: ErrorContext,
+    ) -> Result<()> {
+        if (200..300).contains(&status) {
+            return Ok(());
+        }
+
+        // 尝试解析结构化错误
+        if let Ok(error) = serde_json::from_str::<ErrorResponse>(response_text) {
+            return Err(self.map_error(
+                RawApiError::with_code(
+                    error.error_code.unwrap_or_default(),
+                    error.error_msg.unwrap_or_default(),
+                ),
+                ctx,
+            ));
+        }
+
+        // 回退到通用错误
+        Err(self.unknown_error(RawApiError::new(format!("HTTP {status}: {response_text}"))))
     }
 }
