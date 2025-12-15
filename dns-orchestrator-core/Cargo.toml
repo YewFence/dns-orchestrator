@@ -36,7 +36,7 @@ aes-gcm = "0.10"
 pbkdf2 = { version = "0.12", features = ["simple"] }
 sha2 = "0.10"
 base64 = "0.22"
-rand = "0.8"
+rand = "0.9"
 
 # Toolbox: WHOIS
 whois-rust = { version = "1.6", features = ["tokio"] }
@@ -51,8 +51,8 @@ reqwest = { version = "0.12", default-features = false, features = ["json"] }
 # SSL 检查 (feature-gated)
 native-tls-crate = { package = "native-tls", version = "0.2", optional = true }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"], optional = true }
-webpki-roots = { version = "0.26", optional = true }
-x509-parser = { version = "0.16", optional = true }
+webpki-roots = { version = "1", optional = true }
+x509-parser = { version = "0.18", optional = true }
 
 # Clippy 配置
 [lints.rust]

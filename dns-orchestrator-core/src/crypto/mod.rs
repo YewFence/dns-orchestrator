@@ -45,8 +45,8 @@ pub fn encrypt(plaintext: &[u8], password: &str) -> CoreResult<(String, String, 
     // 生成随机盐和 nonce
     let mut salt = [0u8; SALT_LENGTH];
     let mut nonce_bytes = [0u8; NONCE_LENGTH];
-    rand::thread_rng().fill_bytes(&mut salt);
-    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+    rand::rng().fill_bytes(&mut salt);
+    rand::rng().fill_bytes(&mut nonce_bytes);
 
     // 派生密钥
     let key = derive_key(password, &salt);
