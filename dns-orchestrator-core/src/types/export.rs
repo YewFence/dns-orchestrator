@@ -1,5 +1,6 @@
 //! 导入导出相关类型定义
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -16,9 +17,11 @@ pub struct ExportedAccount {
     /// DNS 服务商类型
     pub provider: ProviderType,
     /// 创建时间
-    pub created_at: String,
+    #[serde(with = "crate::utils::datetime")]
+    pub created_at: DateTime<Utc>,
     /// 更新时间
-    pub updated_at: String,
+    #[serde(with = "crate::utils::datetime")]
+    pub updated_at: DateTime<Utc>,
     /// 凭证数据
     pub credentials: HashMap<String, String>,
 }

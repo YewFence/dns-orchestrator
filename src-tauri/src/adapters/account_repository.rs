@@ -169,7 +169,7 @@ impl AccountRepository for TauriAccountRepository {
 
         account.status = Some(status);
         account.error = error;
-        account.updated_at = chrono::Utc::now().to_rfc3339();
+        account.updated_at = chrono::Utc::now();
 
         self.save_to_store(&accounts_vec)?;
 

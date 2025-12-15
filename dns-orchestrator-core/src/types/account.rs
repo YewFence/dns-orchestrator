@@ -1,5 +1,6 @@
 //! 账户相关类型定义
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -24,12 +25,14 @@ pub struct Account {
     pub name: String,
     /// DNS 服务商类型
     pub provider: ProviderType,
-    /// 创建时间 (RFC3339)
+    /// 创建时间
     #[serde(rename = "createdAt")]
-    pub created_at: String,
-    /// 更新时间 (RFC3339)
+    #[serde(with = "crate::utils::datetime")]
+    pub created_at: DateTime<Utc>,
+    /// 更新时间
     #[serde(rename = "updatedAt")]
-    pub updated_at: String,
+    #[serde(with = "crate::utils::datetime")]
+    pub updated_at: DateTime<Utc>,
     /// 账户状态
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<AccountStatus>,

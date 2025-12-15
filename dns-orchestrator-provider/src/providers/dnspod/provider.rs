@@ -226,7 +226,11 @@ impl DnsProvider for DnspodProvider {
                             priority: r.mx,
                             proxied: None,
                             created_at: None,
-                            updated_at: r.updated_on,
+                            updated_at: r.updated_on.and_then(|s| {
+                                chrono::DateTime::parse_from_rfc3339(&s)
+                                    .ok()
+                                    .map(|dt| dt.with_timezone(&chrono::Utc))
+                            }),
                         })
                     })
                     .collect();
@@ -291,7 +295,7 @@ impl DnsProvider for DnspodProvider {
 
         let response: CreateRecordResponse = self.request("CreateRecord", &api_req, ctx).await?;
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = chrono::Utc::now();
         Ok(DnsRecord {
             id: response.record_id.to_string(),
             domain_id: req.domain_id.clone(),
@@ -301,7 +305,7 @@ impl DnsProvider for DnspodProvider {
             ttl: req.ttl,
             priority: req.priority,
             proxied: None,
-            created_at: Some(now.clone()),
+            created_at: Some(now),
             updated_at: Some(now),
         })
     }
@@ -360,7 +364,7 @@ impl DnsProvider for DnspodProvider {
 
         let _response: ModifyRecordResponse = self.request("ModifyRecord", &api_req, ctx).await?;
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = chrono::Utc::now();
         Ok(DnsRecord {
             id: record_id.to_string(),
             domain_id: req.domain_id.clone(),

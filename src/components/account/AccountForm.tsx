@@ -153,9 +153,7 @@ export function AccountForm({ open, onOpenChange, account }: AccountFormProps) {
           <DialogTitle>
             {isEditing ? t("account.editAccount") : t("account.addAccount")}
           </DialogTitle>
-          {isEditing && (
-            <DialogDescription>{t("account.editAccountDesc")}</DialogDescription>
-          )}
+          {isEditing && <DialogDescription>{t("account.editAccountDesc")}</DialogDescription>}
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">

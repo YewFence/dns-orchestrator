@@ -159,9 +159,13 @@ pub struct DnsRecord {
     pub priority: Option<u16>,
     pub proxied: Option<bool>,
     #[serde(rename = "createdAt")]
-    pub created_at: Option<String>,
+    #[serde(with = "crate::utils::datetime")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(rename = "updatedAt")]
-    pub updated_at: Option<String>,
+    #[serde(with = "crate::utils::datetime")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

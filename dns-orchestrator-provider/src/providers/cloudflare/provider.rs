@@ -53,8 +53,16 @@ impl CloudflareProvider {
             ttl: cf_record.ttl,
             priority: cf_record.priority,
             proxied: cf_record.proxied,
-            created_at: cf_record.created_on,
-            updated_at: cf_record.modified_on,
+            created_at: cf_record.created_on.and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+            }),
+            updated_at: cf_record.modified_on.and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+            }),
         })
     }
 }

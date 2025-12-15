@@ -75,7 +75,7 @@ fn convert_import_result(result: dns_orchestrator_core::types::ImportResult) -> 
 pub async fn list_accounts(
     state: State<'_, AppState>,
 ) -> Result<ApiResponse<Vec<Account>>, DnsError> {
-    let accounts = state.account_service.list_accounts().await?;
+    let accounts = state.account_metadata_service.list_accounts().await?;
     let converted: Vec<Account> = accounts.into_iter().map(convert_account).collect();
     Ok(ApiResponse::success(converted))
 }
@@ -93,7 +93,10 @@ pub async fn create_account(
         credentials: request.credentials,
     };
 
-    let account = state.account_service.create_account(core_request).await?;
+    let account = state
+        .account_lifecycle_service
+        .create_account(core_request)
+        .await?;
     Ok(ApiResponse::success(convert_account(account)))
 }
 
@@ -103,7 +106,10 @@ pub async fn delete_account(
     state: State<'_, AppState>,
     account_id: String,
 ) -> Result<ApiResponse<()>, DnsError> {
-    state.account_service.delete_account(&account_id).await?;
+    state
+        .account_lifecycle_service
+        .delete_account(&account_id)
+        .await?;
     Ok(ApiResponse::success(()))
 }
 
@@ -120,7 +126,10 @@ pub async fn update_account(
         credentials: request.credentials,
     };
 
-    let account = state.account_service.update_account(core_request).await?;
+    let account = state
+        .account_lifecycle_service
+        .update_account(core_request)
+        .await?;
     Ok(ApiResponse::success(convert_account(account)))
 }
 
@@ -148,7 +157,7 @@ pub async fn batch_delete_accounts(
     account_ids: Vec<String>,
 ) -> Result<ApiResponse<BatchDeleteResult>, DnsError> {
     let result = state
-        .account_service
+        .account_lifecycle_service
         .batch_delete_accounts(account_ids)
         .await?;
     Ok(ApiResponse::success(convert_batch_delete_result(result)))
@@ -159,7 +168,7 @@ pub async fn batch_delete_accounts(
 pub async fn list_providers(
     state: State<'_, AppState>,
 ) -> Result<ApiResponse<Vec<ProviderMetadata>>, DnsError> {
-    let providers = state.account_service.list_providers();
+    let providers = state.provider_metadata_service.list_providers();
     Ok(ApiResponse::success(providers))
 }
 

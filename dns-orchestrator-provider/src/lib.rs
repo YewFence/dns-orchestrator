@@ -40,6 +40,7 @@ mod factory;
 mod providers;
 mod traits;
 mod types;
+mod utils;
 
 // Re-export error types
 pub use error::{ProviderError, Result};
@@ -57,6 +58,9 @@ pub use types::{
     ProviderDomain, ProviderFeatures, ProviderMetadata, ProviderType, RecordQueryParams,
     UpdateDnsRecordRequest,
 };
+
+// Re-export utils module
+pub use utils::datetime;
 
 // Re-export concrete providers (behind feature flags)
 #[cfg(feature = "cloudflare")]

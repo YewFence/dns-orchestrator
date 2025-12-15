@@ -30,9 +30,9 @@ impl AliyunProvider {
         }
     }
 
-    /// 将时间戳转换为 RFC3339 格式
-    pub(crate) fn timestamp_to_rfc3339(timestamp: Option<i64>) -> Option<String> {
-        timestamp.and_then(|ts| DateTime::from_timestamp(ts / 1000, 0).map(|dt| dt.to_rfc3339()))
+    /// 将阿里云的 Unix 毫秒时间戳转换为 DateTime<Utc>
+    pub(crate) fn timestamp_to_datetime(timestamp: Option<i64>) -> Option<DateTime<chrono::Utc>> {
+        timestamp.and_then(|ts| DateTime::from_timestamp_millis(ts))
     }
 }
 
@@ -203,8 +203,8 @@ impl DnsProvider for AliyunProvider {
                     ttl: r.ttl,
                     priority: r.priority,
                     proxied: None, // 阿里云不支持代理
-                    created_at: Self::timestamp_to_rfc3339(r.create_timestamp),
-                    updated_at: Self::timestamp_to_rfc3339(r.update_timestamp),
+                    created_at: Self::timestamp_to_datetime(r.create_timestamp),
+                    updated_at: Self::timestamp_to_datetime(r.update_timestamp),
                 })
             })
             .collect();
@@ -253,7 +253,7 @@ impl DnsProvider for AliyunProvider {
         let response: AddDomainRecordResponse =
             self.request("AddDomainRecord", &api_req, ctx).await?;
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = chrono::Utc::now();
         Ok(DnsRecord {
             id: response.record_id,
             domain_id: req.domain_id.clone(),
@@ -263,7 +263,7 @@ impl DnsProvider for AliyunProvider {
             ttl: req.ttl,
             priority: req.priority,
             proxied: None,
-            created_at: Some(now.clone()),
+            created_at: Some(now),
             updated_at: Some(now),
         })
     }
@@ -307,7 +307,7 @@ impl DnsProvider for AliyunProvider {
         let _response: UpdateDomainRecordResponse =
             self.request("UpdateDomainRecord", &api_req, ctx).await?;
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = chrono::Utc::now();
         Ok(DnsRecord {
             id: record_id.to_string(),
             domain_id: req.domain_id.clone(),

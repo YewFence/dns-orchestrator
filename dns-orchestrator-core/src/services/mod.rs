@@ -1,15 +1,23 @@
 //! 业务逻辑服务层
 
-mod account_service;
+mod account_bootstrap_service;
+mod account_lifecycle_service;
+mod account_metadata_service;
+mod credential_management_service;
 mod dns_service;
 mod domain_service;
 mod import_export_service;
+mod provider_metadata_service;
 mod toolbox;
 
-pub use account_service::{AccountService, RestoreResult};
+pub use account_bootstrap_service::{AccountBootstrapService, RestoreResult};
+pub use account_lifecycle_service::AccountLifecycleService;
+pub use account_metadata_service::AccountMetadataService;
+pub use credential_management_service::CredentialManagementService;
 pub use dns_service::DnsService;
 pub use domain_service::DomainService;
 pub use import_export_service::ImportExportService;
+pub use provider_metadata_service::ProviderMetadataService;
 pub use toolbox::ToolboxService;
 
 use std::sync::Arc;

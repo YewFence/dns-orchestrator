@@ -14,6 +14,7 @@ pub mod error;
 pub mod services;
 pub mod traits;
 pub mod types;
+pub mod utils;
 
 // Re-export 常用类型
 pub use error::{CoreError, CoreResult};

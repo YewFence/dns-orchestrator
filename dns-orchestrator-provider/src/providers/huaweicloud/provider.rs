@@ -183,8 +183,16 @@ impl DnsProvider for HuaweicloudProvider {
                     ttl: r.ttl.unwrap_or(300),
                     priority,
                     proxied: None,
-                    created_at: r.created_at,
-                    updated_at: r.updated_at,
+                    created_at: r.created_at.and_then(|s| {
+                        chrono::DateTime::parse_from_rfc3339(&s)
+                            .ok()
+                            .map(|dt| dt.with_timezone(&chrono::Utc))
+                    }),
+                    updated_at: r.updated_at.and_then(|s| {
+                        chrono::DateTime::parse_from_rfc3339(&s)
+                            .ok()
+                            .map(|dt| dt.with_timezone(&chrono::Utc))
+                    }),
                 })
             })
             .collect();
@@ -235,7 +243,7 @@ impl DnsProvider for HuaweicloudProvider {
         };
         let response: CreateRecordSetResponse = self.post(&path, &api_req, ctx).await?;
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = chrono::Utc::now();
         Ok(DnsRecord {
             id: response.id,
             domain_id: req.domain_id.clone(),
@@ -245,7 +253,7 @@ impl DnsProvider for HuaweicloudProvider {
             ttl: req.ttl,
             priority: req.priority,
             proxied: None,
-            created_at: Some(now.clone()),
+            created_at: Some(now),
             updated_at: Some(now),
         })
     }
@@ -292,7 +300,7 @@ impl DnsProvider for HuaweicloudProvider {
         };
         let _response: CreateRecordSetResponse = self.put(&path, &api_req, ctx).await?;
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = chrono::Utc::now();
         Ok(DnsRecord {
             id: record_id.to_string(),
             domain_id: req.domain_id.clone(),

@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -33,9 +34,9 @@ pub struct Account {
     pub name: String,
     pub provider: ProviderType,
     #[serde(rename = "createdAt")]
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
     #[serde(rename = "updatedAt")]
-    pub updated_at: String,
+    pub updated_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<AccountStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]

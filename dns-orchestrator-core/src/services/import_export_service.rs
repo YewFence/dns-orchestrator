@@ -35,10 +35,17 @@ impl ImportExportService {
         let export_file: ExportFile = serde_json::from_str(content)
             .map_err(|e| CoreError::ImportExportError(format!("无效的导入文件: {e}")))?;
 
-        // 2. 检查版本
-        if export_file.header.version > 1 {
-            return Err(CoreError::UnsupportedFileVersion);
-        }
+        // 2. 检查文件格式版本并获取加密参数
+        let kdf_iterations = if export_file.header.encrypted {
+            crypto::get_pbkdf2_iterations(export_file.header.version).ok_or_else(|| {
+                CoreError::ImportExportError(format!(
+                    "不支持的文件版本: {}",
+                    export_file.header.version
+                ))
+            })?
+        } else {
+            0 // 未加密文件不需要迭代次数
+        };
 
         // 3. 如果加密但未提供密码，返回 None 表示需要密码
         if export_file.header.encrypted && password.is_none() {
@@ -49,6 +56,13 @@ impl ImportExportService {
         let accounts: Vec<ExportedAccount> = if export_file.header.encrypted {
             let password = password
                 .ok_or_else(|| CoreError::ImportExportError("加密文件需要提供密码".to_string()))?;
+
+            log::info!(
+                "解密版本 {} 的文件，使用 PBKDF2-HMAC-SHA256 ({} 次迭代)",
+                export_file.header.version,
+                kdf_iterations
+            );
+
             let ciphertext = export_file
                 .data
                 .as_str()
@@ -64,9 +78,12 @@ impl ImportExportService {
                 .as_ref()
                 .ok_or_else(|| CoreError::ImportExportError("缺少加密 nonce".to_string()))?;
 
-            let plaintext = crypto::decrypt(ciphertext, password, salt, nonce).map_err(|_| {
-                CoreError::ImportExportError("解密失败，请检查密码是否正确".to_string())
-            })?;
+            // 使用版本对应的迭代次数解密
+            let plaintext =
+                crypto::decrypt_with_iterations(ciphertext, password, salt, nonce, kdf_iterations)
+                    .map_err(|_| {
+                        CoreError::ImportExportError("解密失败，请检查密码是否正确".to_string())
+                    })?;
 
             serde_json::from_slice(&plaintext)
                 .map_err(|e| CoreError::ImportExportError(format!("解析账号数据失败: {e}")))?
@@ -114,8 +131,8 @@ impl ImportExportService {
                 id: uuid::Uuid::new_v4().to_string(), // 生成新 ID，避免导入时冲突
                 name: account.name.clone(),
                 provider: account.provider.clone(),
-                created_at: account.created_at.clone(),
-                updated_at: account.updated_at.clone(),
+                created_at: account.created_at,
+                updated_at: account.updated_at,
                 credentials,
             });
         }
@@ -125,7 +142,7 @@ impl ImportExportService {
             .map_err(|e| CoreError::SerializationError(e.to_string()))?;
 
         // 4. 构建导出文件
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = chrono::Utc::now();
 
         let export_file = if request.encrypt {
             let password = request
@@ -141,11 +158,11 @@ impl ImportExportService {
 
             ExportFile {
                 header: ExportFileHeader {
-                    version: 1,
+                    version: crypto::CURRENT_FILE_VERSION,
                     encrypted: true,
                     salt: Some(salt),
                     nonce: Some(nonce),
-                    exported_at: now,
+                    exported_at: now.to_rfc3339(),
                     app_version: app_version.to_string(),
                 },
                 data: serde_json::Value::String(ciphertext),
@@ -153,11 +170,11 @@ impl ImportExportService {
         } else {
             ExportFile {
                 header: ExportFileHeader {
-                    version: 1,
+                    version: crypto::CURRENT_FILE_VERSION,
                     encrypted: false,
                     salt: None,
                     nonce: None,
-                    exported_at: now,
+                    exported_at: now.to_rfc3339(),
                     app_version: app_version.to_string(),
                 },
                 data: accounts_json,
@@ -233,7 +250,7 @@ impl ImportExportService {
         // 2. 逐个导入账号
         let mut success_count = 0;
         let mut failures = Vec::new();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = chrono::Utc::now();
 
         for exported in accounts {
             // 2.1 转换凭证并创建 provider 实例
