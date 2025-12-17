@@ -73,7 +73,7 @@ impl From<CoreError> for DnsError {
             CoreError::AccountNotFound(s) => Self::AccountNotFound(s),
             CoreError::DomainNotFound(s) => Self::DomainNotFound(s),
             CoreError::RecordNotFound(s) => Self::RecordNotFound(s),
-            CoreError::CredentialError(s) => Self::CredentialError(s),
+            CoreError::CredentialError(s) | CoreError::StorageError(s) => Self::CredentialError(s),
             CoreError::CredentialValidation(e) => Self::CredentialValidation(e),
             CoreError::ApiError { provider, message } => Self::ApiError { provider, message },
             CoreError::InvalidCredentials(_) => Self::InvalidCredentials,
@@ -82,7 +82,6 @@ impl From<CoreError> for DnsError {
             CoreError::ImportExportError(s) => Self::ImportExportError(s),
             CoreError::NoAccountsSelected => Self::NoAccountsSelected,
             CoreError::UnsupportedFileVersion => Self::UnsupportedFileVersion,
-            CoreError::StorageError(s) => Self::CredentialError(s),
             CoreError::NetworkError(s) => Self::ApiError {
                 provider: "network".to_string(),
                 message: s,

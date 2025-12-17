@@ -10,6 +10,7 @@ use std::sync::Arc;
 use commands::updater;
 use commands::{account, dns, domain, toolbox};
 use tauri::Manager;
+use tauri_plugin_log::{Target, TargetKind};
 
 use adapters::{TauriAccountRepository, TauriCredentialStore};
 use dns_orchestrator_core::services::{
@@ -104,14 +105,29 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .level(log::LevelFilter::Debug)
-                .build(),
-        )
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init());
+
+    #[cfg(debug_assertions)]
+    {
+        builder = builder.plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([Target::new(TargetKind::Stdout)])
+                .level(log::LevelFilter::Debug)
+                .build(),
+        );
+    }
+
+    #[cfg(not(debug_assertions))]
+    {
+        builder = builder.plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([Target::new(TargetKind::Stdout)])
+                .level(log::LevelFilter::Warn)
+                .build(),
+        );
+    }
 
     // 仅桌面端启用 updater
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
