@@ -67,9 +67,18 @@ export const DnsRecordRow = memo(function DnsRecordRow({
         </Badge>
       </TableCell>
       <TableCell className="font-mono text-sm">
-        <CopyableText value={fullDomain}>
-          {record.name === "@" ? <span className="text-muted-foreground">@</span> : record.name}
-        </CopyableText>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <CopyableText value={fullDomain}>
+                {record.name === "@" ? <span className="text-muted-foreground">@</span> : record.name}
+              </CopyableText>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="font-mono text-xs">{fullDomain}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </TableCell>
       <TableCell>
         <TooltipProvider>

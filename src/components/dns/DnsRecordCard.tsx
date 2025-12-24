@@ -12,6 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type { DnsRecord } from "@/types"
 
@@ -82,9 +83,18 @@ export const DnsRecordCard = memo(function DnsRecordCard({
           <Badge variant="secondary" className={TYPE_COLORS[record.type] || ""}>
             {record.type}
           </Badge>
-          <CopyableText value={fullDomain} className="truncate font-mono text-sm">
-            {record.name === "@" ? <span className="text-muted-foreground">@</span> : record.name}
-          </CopyableText>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <CopyableText value={fullDomain} className="truncate font-mono text-sm">
+                  {record.name === "@" ? <span className="text-muted-foreground">@</span> : record.name}
+                </CopyableText>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="font-mono text-xs">{fullDomain}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         {!isSelectMode && (
           <DropdownMenu>
