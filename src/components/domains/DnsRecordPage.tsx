@@ -83,6 +83,7 @@ export function DnsRecordPage() {
         <DnsRecordTable
           accountId={accountId}
           domainId={domainId}
+          domainName={selectedDomain?.name ?? ""}
           supportsProxy={providerFeatures?.proxy ?? false}
         />
       </div>

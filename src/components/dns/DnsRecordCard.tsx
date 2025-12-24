@@ -17,6 +17,7 @@ import type { DnsRecord } from "@/types"
 
 interface DnsRecordCardProps {
   record: DnsRecord
+  domainName: string
   onEdit: () => void
   onDelete: () => void
   disabled?: boolean
@@ -50,6 +51,7 @@ function formatTTL(ttl: number): string {
 
 export const DnsRecordCard = memo(function DnsRecordCard({
   record,
+  domainName,
   onEdit,
   onDelete,
   disabled = false,
@@ -59,6 +61,8 @@ export const DnsRecordCard = memo(function DnsRecordCard({
   onToggleSelect,
 }: DnsRecordCardProps) {
   const { t } = useTranslation()
+  // 计算完整域名：@ 表示根域名，否则是 name.domain
+  const fullDomain = record.name === "@" ? domainName : `${record.name}.${domainName}`
 
   return (
     <Card
@@ -78,9 +82,9 @@ export const DnsRecordCard = memo(function DnsRecordCard({
           <Badge variant="secondary" className={TYPE_COLORS[record.type] || ""}>
             {record.type}
           </Badge>
-          <span className="truncate font-mono text-sm">
+          <CopyableText value={fullDomain} className="truncate font-mono text-sm">
             {record.name === "@" ? <span className="text-muted-foreground">@</span> : record.name}
-          </span>
+          </CopyableText>
         </div>
         {!isSelectMode && (
           <DropdownMenu>

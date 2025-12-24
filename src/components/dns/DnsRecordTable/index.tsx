@@ -35,7 +35,7 @@ import { DesktopTable } from "./DesktopTable"
 import { MobileCardList } from "./MobileCardList"
 import type { DnsRecordTableProps } from "./types"
 
-export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecordTableProps) {
+export function DnsRecordTable({ accountId, domainId, domainName, supportsProxy }: DnsRecordTableProps) {
   const { t } = useTranslation()
   const isMobile = useIsMobile()
   const paginationMode = useSettingsStore((state) => state.paginationMode)
@@ -224,6 +224,7 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
         {isMobile ? (
           <MobileCardList
             records={sortedRecords}
+            domainName={domainName}
             isLoading={isLoading}
             isLoadingMore={isLoadingMore}
             isDeleting={isDeleting}
@@ -241,6 +242,7 @@ export function DnsRecordTable({ accountId, domainId, supportsProxy }: DnsRecord
         ) : (
           <DesktopTable
             records={sortedRecords}
+            domainName={domainName}
             isLoading={isLoading}
             isLoadingMore={isLoadingMore}
             isDeleting={isDeleting}

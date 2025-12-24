@@ -6,6 +6,7 @@ import type { MobileCardListProps } from "./types"
 
 export function MobileCardList({
   records,
+  domainName,
   isLoading,
   isLoadingMore,
   isDeleting,
@@ -54,6 +55,7 @@ export function MobileCardList({
             <DnsRecordCard
               key={record.id}
               record={record}
+              domainName={domainName}
               onEdit={() => onEdit(record)}
               onDelete={() => onDelete(record)}
               disabled={isDeleting}

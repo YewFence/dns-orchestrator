@@ -16,6 +16,7 @@ import type { DnsRecord } from "@/types"
 
 interface DnsRecordRowProps {
   record: DnsRecord
+  domainName: string
   onEdit: () => void
   onDelete: () => void
   disabled?: boolean
@@ -48,6 +49,7 @@ function formatTTL(
 
 export const DnsRecordRow = memo(function DnsRecordRow({
   record,
+  domainName,
   onEdit,
   onDelete,
   disabled = false,
@@ -55,6 +57,8 @@ export const DnsRecordRow = memo(function DnsRecordRow({
   asFragment = false,
 }: DnsRecordRowProps) {
   const { t } = useTranslation()
+  // 计算完整域名：@ 表示根域名，否则是 name.domain
+  const fullDomain = record.name === "@" ? domainName : `${record.name}.${domainName}`
   const cells = (
     <>
       <TableCell>
@@ -63,7 +67,9 @@ export const DnsRecordRow = memo(function DnsRecordRow({
         </Badge>
       </TableCell>
       <TableCell className="font-mono text-sm">
-        {record.name === "@" ? <span className="text-muted-foreground">@</span> : record.name}
+        <CopyableText value={fullDomain}>
+          {record.name === "@" ? <span className="text-muted-foreground">@</span> : record.name}
+        </CopyableText>
       </TableCell>
       <TableCell>
         <TooltipProvider>
