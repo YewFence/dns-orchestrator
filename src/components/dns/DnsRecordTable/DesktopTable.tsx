@@ -34,6 +34,7 @@ function SortIcon({
 
 export function DesktopTable({
   records,
+  domainName,
   isLoading,
   isLoadingMore,
   isDeleting,
@@ -136,6 +137,7 @@ export function DesktopTable({
                 )}
                 <DnsRecordRow
                   record={record}
+                  domainName={domainName}
                   onEdit={() => onEdit(record)}
                   onDelete={() => onDelete(record)}
                   disabled={isDeleting || isSelectMode}

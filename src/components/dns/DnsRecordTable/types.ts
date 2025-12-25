@@ -4,11 +4,13 @@ import type { SortField } from "../useDnsTableSort"
 export interface DnsRecordTableProps {
   accountId: string
   domainId: string
+  domainName: string
   supportsProxy: boolean
 }
 
 export interface MobileCardListProps {
   records: DnsRecord[]
+  domainName: string
   isLoading: boolean
   isLoadingMore: boolean
   isDeleting: boolean
@@ -26,6 +28,7 @@ export interface MobileCardListProps {
 
 export interface DesktopTableProps {
   records: DnsRecord[]
+  domainName: string
   isLoading: boolean
   isLoadingMore: boolean
   isDeleting: boolean

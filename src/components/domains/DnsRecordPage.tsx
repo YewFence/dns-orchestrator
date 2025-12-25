@@ -33,6 +33,13 @@ export function DnsRecordPage() {
     return domains.find((d) => d.id === domainId)
   }, [getDomainsForAccount, accountId, domainId])
 
+  // 获取当前账户对应的提供商功能
+  const providerFeatures = useMemo(() => {
+    if (!selectedAccount) return null
+    const provider = providers.find((p) => p.id === selectedAccount.provider)
+    return provider?.features ?? null
+  }, [selectedAccount, providers])
+
   // 添加到最近访问记录
   useEffect(() => {
     if (selectedAccount && selectedDomain && accountId && domainId) {
@@ -58,13 +65,6 @@ export function DnsRecordPage() {
     return null
   }
 
-  // 获取当前账户对应的提供商功能
-  const providerFeatures = useMemo(() => {
-    if (!selectedAccount) return null
-    const provider = providers.find((p) => p.id === selectedAccount.provider)
-    return provider?.features ?? null
-  }, [selectedAccount, providers])
-
   return (
     <PageLayout>
       <PageHeader
@@ -80,11 +80,14 @@ export function DnsRecordPage() {
 
       {/* DNS 记录表格 */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <DnsRecordTable
-          accountId={accountId}
-          domainId={domainId}
-          supportsProxy={providerFeatures?.proxy ?? false}
-        />
+        {selectedDomain && (
+          <DnsRecordTable
+            accountId={accountId}
+            domainId={domainId}
+            domainName={selectedDomain.name}
+            supportsProxy={providerFeatures?.proxy ?? false}
+          />
+        )}
       </div>
     </PageLayout>
   )

@@ -1,6 +1,7 @@
 import { MoreHorizontal, Pencil, Shield, ShieldOff, Trash2 } from "lucide-react"
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
+import { CopyableText } from "@/components/toolbox/shared/CopyableText"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -11,11 +12,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type { DnsRecord } from "@/types"
 
 interface DnsRecordCardProps {
   record: DnsRecord
+  domainName: string
   onEdit: () => void
   onDelete: () => void
   disabled?: boolean
@@ -49,6 +52,7 @@ function formatTTL(ttl: number): string {
 
 export const DnsRecordCard = memo(function DnsRecordCard({
   record,
+  domainName,
   onEdit,
   onDelete,
   disabled = false,
@@ -58,6 +62,8 @@ export const DnsRecordCard = memo(function DnsRecordCard({
   onToggleSelect,
 }: DnsRecordCardProps) {
   const { t } = useTranslation()
+  // 计算完整域名：@ 表示根域名，否则是 name.domain
+  const fullDomain = record.name === "@" ? domainName : `${record.name}.${domainName}`
 
   return (
     <Card
@@ -77,9 +83,24 @@ export const DnsRecordCard = memo(function DnsRecordCard({
           <Badge variant="secondary" className={TYPE_COLORS[record.type] || ""}>
             {record.type}
           </Badge>
-          <span className="truncate font-mono text-sm">
-            {record.name === "@" ? <span className="text-muted-foreground">@</span> : record.name}
-          </span>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="block min-w-0 max-w-full truncate">
+                  <CopyableText value={fullDomain} className="font-mono text-sm">
+                    {record.name === "@" ? (
+                      <span className="text-muted-foreground">@</span>
+                    ) : (
+                      record.name
+                    )}
+                  </CopyableText>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="font-mono text-xs">{fullDomain}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         {!isSelectMode && (
           <DropdownMenu>
@@ -112,7 +133,7 @@ export const DnsRecordCard = memo(function DnsRecordCard({
           {record.priority !== undefined && (
             <span className="mr-1 text-xs">[{record.priority}]</span>
           )}
-          {record.value}
+          <CopyableText value={record.value}>{record.value}</CopyableText>
         </p>
       </div>
 
