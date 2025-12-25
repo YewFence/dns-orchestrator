@@ -224,9 +224,9 @@ impl DnsProvider for AliyunProvider {
             .into_iter()
             .filter_map(|r| {
                 let record_type = parse_record_type(&r.record_type, "aliyun").ok()?;
-                // 只有 MX 和 SRV 记录才有 priority，其他类型忽略
+                // 只有 MX 记录才有 priority，其他类型忽略
                 let priority = match record_type {
-                    DnsRecordType::Mx | DnsRecordType::Srv => r.priority,
+                    DnsRecordType::Mx => r.priority,
                     _ => None,
                 };
                 Some(DnsRecord {
