@@ -316,7 +316,7 @@ export function DnsRecordTable({
 
                 return pages.map((p, i) =>
                   p === "ellipsis" ? (
-                    <PaginationItem key={`ellipsis-${p === "ellipsis" ? (i < pages.length / 2 ? "start" : "end") : p}`}>
+                    <PaginationItem key={`ellipsis-${i < pages.length / 2 ? "start" : "end"}`}>
                       <PaginationEllipsis className="h-8 w-8" />
                     </PaginationItem>
                   ) : (

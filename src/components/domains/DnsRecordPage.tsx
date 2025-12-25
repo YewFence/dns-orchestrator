@@ -80,12 +80,14 @@ export function DnsRecordPage() {
 
       {/* DNS 记录表格 */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <DnsRecordTable
-          accountId={accountId}
-          domainId={domainId}
-          domainName={selectedDomain?.name ?? ""}
-          supportsProxy={providerFeatures?.proxy ?? false}
-        />
+        {selectedDomain && (
+          <DnsRecordTable
+            accountId={accountId}
+            domainId={domainId}
+            domainName={selectedDomain.name}
+            supportsProxy={providerFeatures?.proxy ?? false}
+          />
+        )}
       </div>
     </PageLayout>
   )
